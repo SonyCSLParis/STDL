@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from sklearn.metrics.pairwise import cosine_distances
 
 def get_unique_entities(df,layer1):
@@ -80,3 +81,18 @@ def get_absolute_matrix(df, layer1 = 'id1', layer2 = 'id2', timestamp_col = 'tim
     absolute_matrix = pd.DataFrame(distance_function(biadjacency_matrix), index=biadjacency_matrix.index, columns=biadjacency_matrix.index)
 
     return absolute_matrix
+
+def random_data_gen(num_rows = 1000, n_layer_1 = 3, n_layer_2 = 20, start_dt = datetime(2020, 1, 1), end_dt = datetime(2025, 1, 1) ):
+    id1 = ["L1_"+str(x) for x in np.random.randint(n_layer_1, size=num_rows)]
+    id2 = ["L2_"+str(x) for x in np.random.randint(n_layer_2, size=num_rows)]
+    start_u = start_dt.timestamp()
+    end_u = end_dt.timestamp()
+    random_ts = np.random.uniform(start_u, end_u, num_rows)
+    dt = sorted([datetime.fromtimestamp(ts) for ts in random_ts])
+
+    df = pd.DataFrame({
+        'L1_id': id1,
+        'L2_id': id2,
+        'timestamp': dt
+    })
+    return df   
