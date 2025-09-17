@@ -97,10 +97,21 @@ class STDC:
 
         biadjacency_matrix = grouped.pivot(
             index=[leader_col, 'timeframe'], columns=follower_col, values='counts').fillna(0)
+        
+        self.biadjacency_matrix = biadjacency_matrix
 
         return biadjacency_matrix
 
-    def compute_relative_matrix(self, biadjacency_matrix, distance_function):
+    def compute_relative_matrix(self, biadjacency_matrix = None, agg_func = None, distance_function=cosine_distances):
+
+        # if the user has not computed biadjacency matrix before or did not input one, calculate it
+        if hasattr(self, 'biadjacency_matrix') and self.biadjacency_matrix is not None:
+            biadjacency_matrix = self.biadjacency_matrix
+
+        else:
+            # get biadjacency matrix
+            biadjacency_matrix = self.compute_biadjacency_matrix(self.raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+
         tmp_index_tf = []
         relative_cosine_dist_matrices = pd.DataFrame()
         for tf in biadjacency_matrix.index.levels[1].unique():
@@ -126,9 +137,24 @@ class STDC:
             #pass
 
         #raw_data_binned = self.bin_timestamps(raw_data, timestamp_col=timestamp_col, timeframe=timeframe)
-        biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+
+        if hasattr(self, 'biadjacency_matrix') and self.biadjacency_matrix is not None:
+            biadjacency_matrix = self.biadjacency_matrix
+
+        else:
+            # get biadjacency matrix
+            biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+
         relative_matrix = self.compute_relative_matrix(biadjacency_matrix, distance_function=distance_function)
+        self.relative_matrix = relative_matrix # store it in the object
         return relative_matrix
+    
+    # def compute_absolute_matrix(self, biadjacency_matrix = None, distance_function=cosine_distances):
+
+    #     absolute_matrix = pd.DataFrame(distance_function(biadjacency_matrix), index=biadjacency_matrix.index, columns=biadjacency_matrix.index)
+    #     self.absolute_matrix = absolute_matrix # store it in the object
+
+    #     return absolute_matrix
 
     def get_absolute_matrix(self, raw_data=None, agg_func = None, distance_function=cosine_distances, dimensions = None):
         
@@ -140,12 +166,20 @@ class STDC:
             #pass
 
         #raw_data_binned = self.bin_timestamps(raw_data, timestamp_col=timestamp_col, timeframe=timeframe)
-        biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+
+        if hasattr(self, 'biadjacency_matrix') and self.biadjacency_matrix is not None:
+            biadjacency_matrix = self.biadjacency_matrix
+
+        else:
+            # get biadjacency matrix
+            biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+
         absolute_matrix = pd.DataFrame(
             distance_function(biadjacency_matrix),
             index=biadjacency_matrix.index,
             columns=biadjacency_matrix.index
         )
+        self.absolute_matrix = absolute_matrix # store it in the object
         return absolute_matrix
     
     def calculate_positions(self, raw_data=None, agg_func=None, comparison='relative', distance_function=cosine_distances, dimensions=None):
@@ -153,17 +187,26 @@ class STDC:
         if raw_data is None:
             raw_data = self.raw_data
 
-        # get biadjacency matrix
-        biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+        #if dimensions > 2:
+            #pass
+
+        if hasattr(self, 'biadjacency_matrix') and self.biadjacency_matrix is not None:
+            biadjacency_matrix = self.biadjacency_matrix
+
+        else:
+            # get biadjacency matrix
+            biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
 
         # get absolute matrix
         if comparison != 'relative':
             absolute_matrix = pd.DataFrame(distance_function(biadjacency_matrix), index=biadjacency_matrix.index, columns=biadjacency_matrix.index)
+            self.absolute_matrix = absolute_matrix # store it in the object
             return absolute_matrix
 
         # get relative matrix
         else:
             relative_matrix = self.compute_relative_matrix(biadjacency_matrix, distance_function=distance_function)
+            self.relative_matrix = relative_matrix # store it in the object
             return relative_matrix
 
     def random_data_gen(self, num_rows=1000, n_layer_1=3, n_layer_2=20,
@@ -180,3 +223,88 @@ class STDC:
             'timestamp': dt
         })
         return raw_data
+    
+    def view_biadjacency_matrix(self):
+        if not hasattr(self, 'biadjacency_matrix') or self.biadjacency_matrix is None:
+            raise AttributeError("Biadjacency matrix has not been computed yet. Please compute it first.")
+        return self.biadjacency_matrix
+
+    
+    def calculate_velocities(self, raw_data=None, agg_func=None, comparison='relative', distance_function=cosine_distances, dimensions=None):
+
+        """
+        Calculates the velocities (cosine distances) between consecutive timeframes.
+
+        Parameters:
+        - raw_data (pd.DataFrame): Optional raw data. Defaults to self.raw_data.
+        - agg_func: Aggregation function for computing the biadjacency matrix. Defaults to counts.
+        - distance_function: Distance metric function (default: cosine_distances).
+
+        Returns:
+        - velocities_df (pd.DataFrame): DataFrame with columns:
+            ['Node', 'From', 'To', 'Velocity']
+        """
+
+        # if comparison is 'relative':
+
+        #     timeframes = 
+
+
+        # elif comparison is 'absolute':
+
+        #     timeframes = 
+
+        # else:
+
+        # assume user doesn't pass any data
+        if raw_data is None:
+            raw_data = self.raw_data
+
+        if hasattr(self, 'biadjacency_matrix') and self.biadjacency_matrix is not None:
+            biadjacency_matrix = self.biadjacency_matrix
+
+        else:
+            # Step 1: Build biadjacency matrix (with timeframes included)
+            biadjacency_matrix = self.compute_biadjacency_matrix(raw_data, leader_col=self.leader_col, follower_col=self.follower_col, agg_func=agg_func)
+
+        # Extract unique timeframes (sorted)
+        timeframes = biadjacency_matrix.index.get_level_values("timeframe").unique().sort_values()
+
+        
+        velocity_records = []
+
+        # Step 2: Loop over consecutive timeframes
+        for i in range(len(timeframes) - 1):
+            current_tf = timeframes[i]
+            next_tf = timeframes[i + 1]
+
+            # Get data for the two timeframes
+            current_data = biadjacency_matrix.xs(current_tf, level="timeframe")
+            next_data = biadjacency_matrix.xs(next_tf, level="timeframe")
+
+            # Align indices (leaders)
+            all_indices = current_data.index.union(next_data.index)
+            current_data = current_data.reindex(all_indices).fillna(0)
+            next_data = next_data.reindex(all_indices).fillna(0)
+
+            # Step 3: Compute velocities node-wise
+            for node in all_indices:
+                vec1 = current_data.loc[node].values
+                vec2 = next_data.loc[node].values
+
+                if np.all(vec1 == 0) or np.all(vec2 == 0):
+                    velocity = np.nan
+                else:
+                    velocity = distance_function([vec1], [vec2])[0][0]
+
+                velocity_records.append({
+                    "Node": node,
+                    "t1": current_tf,
+                    "t2": next_tf,
+                    "Velocity": velocity
+                })
+
+        # Step 4: Convert to DataFrame
+        velocities_df = pd.DataFrame(velocity_records)
+
+        return velocities_df
