@@ -30,6 +30,8 @@ class STDC:
         if not isinstance(field_names, list) or len(field_names) < 3 or type(field_names) is not list:
             raise ValueError("field_names must be a list with 3 ordered elements: [projected_layer, other_layer, timestamp_col]; default: ['id1', 'id2', 'timestamp']")
         
+        ### SHOULD ALL VARIABLE BE PRIVATE???
+        
         # set up column names
         self.projected_layer = field_names[0]
         self.other_layer = field_names[1]
@@ -79,19 +81,23 @@ class STDC:
     
     def calculate_timeframe(self):
         """Add a timeframe column by binning timestamps."""
-
         if self.__time_type == 'actual':
-            #start_dt, end_dt = self.__start_dt, self.__end_dt
-
-            self.raw_data['timeframe'] = (
-                self.raw_data[self.timestamp_col]
-                .dt.to_period(self.__timeframe)
-                .apply(lambda r: f"{r.start_time} to {r.end_time}")
-            )
-            return self.raw_data    
+            #EXAMPLE: self.__timeframe = "%Y" for yearly bins
+            #EXAMPLE: self.__timeframe = "%Y-%m" for monthly bins
+            #EXAMPLE: self.__timeframe = "%Y-%W" for weekly bins
+            #EXAMPLE: self.__timeframe = "%Y-%m-%d" for daily bins
+            if not isinstance(self.__timeframe, str):
+                raise ValueError("If time_type is actual, timeframe must be a string.")
+            self.raw_data['timeframe'] =  self.raw_data['timestamp'].dt.strftime(self.__timeframe)
+        elif self.__time_type == 'intrinsic':
+            if not isinstance(self.__timeframe, int):
+                raise ValueError("If time_type is intrinsic, timeframe must be an integer.")
+            self.raw_data.sort_values(by=[self.timestamp_col], inplace=True)
+            self.raw_data['timeframe'] = range(len(self.raw_data))
+            self.raw_data['timeframe'] = np.floor(self.raw_data['timeframe'] / self.__timeframe).astype(int)
         else:
-            #future implementation of intrinsic time
-            raise NotImplementedError("Intrinsic time has not been implemented yet.")
+            raise NotImplementedError("Not implemented yet.")
+        return self.raw_data    
 
     def calculate_biadjacency_matrix(self):
         """Builds biadjacency matrix (leaders x followers per timeframe)."""
@@ -154,9 +160,9 @@ class STDC:
         if self.__dimensions is not None:
             # take the POSITIONS and reduce dimensionality using e.g. PCA with 2 components
             pca = PCA(n_components=self.__dimensions)
-            self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions))
+            self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index)
+            # OUTPUT SOMEWHERE: explained variance ratio: pca.explained_variance_ratio_
             return self.reduced_positions
-        
         else:
             self.reduced_positions = self.positions
             return self.reduced_positions
