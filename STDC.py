@@ -27,20 +27,17 @@ class STDC:
                  end_dt=datetime(2025, 1, 1)):
 
         # check for correct field input
-        if not isinstance(field_names, list) or len(field_names) < 3:
-            raise ValueError("field_names must be a list with 3 ordered elements: [projected_layer, other_layer, timestamp_col]")
+        if not isinstance(field_names, list) or len(field_names) < 3 or type(field_names) is not list:
+            raise ValueError("field_names must be a list with 3 ordered elements: [projected_layer, other_layer, timestamp_col]; default: ['id1', 'id2', 'timestamp']")
         
         # set up column names
         self.projected_layer = field_names[0]
         self.other_layer = field_names[1]
         self.timestamp_col = field_names[2]
 
-        # placeholder for positions and velocities
         self.biadjacency_matrix = None
-        #self.relative_positions = None
-        #self.absolute_matrix = None
-        self.positions = None
         self.reduced_positions = None
+        self.positions = None
         self.velocities = None
 
         # global defaults
@@ -91,10 +88,9 @@ class STDC:
                 .dt.to_period(self.__timeframe)
                 .apply(lambda r: f"{r.start_time} to {r.end_time}")
             )
-            return self.raw_data
-        
-        #future implementation of intrinsic time
+            return self.raw_data    
         else:
+            #future implementation of intrinsic time
             raise NotImplementedError("Intrinsic time has not been implemented yet.")
 
     def calculate_biadjacency_matrix(self):
@@ -106,13 +102,7 @@ class STDC:
 
         if self.__agg_func is None:
             grouped = self.raw_data.groupby([self.projected_layer, self.other_layer, 'timeframe']).size().reset_index(name='counts')
-        
         else:
-            # attempt for another aggregation function
-            #grouped = self.raw_data.groupby([self.projected_layer, self.other_layer, 'timeframe']).agg(
-                #counts=(self.other_layer, self.__agg_func)
-            #).reset_index()
-
             raise NotImplementedError("Other aggregation functions have not been implemented yet.")
 
         self.biadjacency_matrix = grouped.pivot(
@@ -121,29 +111,25 @@ class STDC:
         
         return self.biadjacency_matrix
 
-    def calculate_unreduced_positions(self):
+    def calculate_positions(self):
         """calculates relative (per __timeframe) distance matrices or absolute matrix (all timeframes combined)."""
 
         #check if biadjacency_matrix exists, if not calculate it
         if self.biadjacency_matrix is None:
-            self.biadjacency_matrix = self.calculate_biadjacency_matrix()
+            self.calculate_biadjacency_matrix()
 
         if self.__comparison == 'relative':
-            tmp_index_tf = []
             relative_cosine_dist_matrices = pd.DataFrame()
 
             for tf in self.biadjacency_matrix.index.levels[1].unique():
                 tmp_raw_data = self.biadjacency_matrix.xs(tf, level='timeframe')
+                multi_index = pd.MultiIndex.from_arrays([tmp_raw_data.index, [tf]*len(tmp_raw_data.index)], names=[self.projected_layer, 'timeframe'])
                 tmp_cosine_dist_matrix = pd.DataFrame(
                     self.__distance_function(tmp_raw_data),
-                    index=tmp_raw_data.index,
+                    index=multi_index,
                     columns=tmp_raw_data.index
                 )
                 relative_cosine_dist_matrices = pd.concat([relative_cosine_dist_matrices, tmp_cosine_dist_matrix], axis=0)
-                tmp_index_tf.extend([tf] * len(tmp_cosine_dist_matrix))
-
-            relative_cosine_dist_matrices['timeframe'] = tmp_index_tf
-            relative_cosine_dist_matrices.set_index(['timeframe'], append=True, inplace=True)
 
             self.positions = relative_cosine_dist_matrices
             return self.positions
@@ -159,38 +145,49 @@ class STDC:
 
     
     # add dim reduction possibility here
-    def calculate_positions(self):
-        """Wrapper to calculate either absolute or relative positions."""
+    def calculate_reduced_positions(self):
+        """Reduce the dimensionality of the positions if needed."""
 
         if self.positions is None:
-            self.positions = self.calculate_unreduced_positions()
+            self.calculate_positions()
 
         if self.__dimensions is not None:
-            # take the biadjacency matrix and reduce dimensionality using e.g. PCA with 2 components
+            # take the POSITIONS and reduce dimensionality using e.g. PCA with 2 components
             pca = PCA(n_components=self.__dimensions)
             self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions))
             return self.reduced_positions
         
-        else:                
-            return self.positions
+        else:
+            self.reduced_positions = self.positions
+            return self.reduced_positions
 
     def calculate_velocities(self):
+        """Calculates the velocities of the entities as the difference of the position between consecutive timeframes."""
+        
+        if self.reduced_positions is None:
+            self.reduced_positions = self.calculate_reduced_positions()
+
+        # assuming reduced_positions has a MultiIndex with levels: (node, timeframe)
+        velocities = pd.DataFrame()
+
+        for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
+            tmp = self.reduced_positions.xs(node, level=self.projected_layer).sort_index()
+            tmp2 = tmp.diff().dropna()
+            tmp2.index = pd.MultiIndex.from_arrays([[node]*len(tmp2), tmp.index[:-1], tmp.index[1:]], names=[self.projected_layer, 't1', 't2'])
+            velocities = pd.concat([velocities, tmp2], axis=0)
+
+        self.velocities = velocities
+        return self.velocities
+
+    def calculate_custom_distance_velocities(self):
         """
-        Calculates the velocities (cosine distances) between consecutive timeframes.
+        Calculates the velocities of the entities as the difference of the position between consecutive timeframes.
         Returns:
         - velocities_df (pd.DataFrame): DataFrame with columns: ['Node', 't1', 't2', 'Velocity']
         """
-
-        # 1. Check if velocities already exist
-        if self.velocities is not None:
-            return self.velocities
-
-        # 2. Check if positions already exist
-        #if (hasattr(self, 'relative_positions') or hasattr(self, 'relative_positions')) and ((self.relative_positions or self.absolute_positions) is not None):
-        if self.positions is not None:
-            pass
-        else:
-            self.positions = self.calculate_positions()
+        # Check if reduced_positions already exist
+        if self.reduced_positions is None:
+            self.reduced_positions = self.calculate_reduced_positions()
 
         # 5. Extract unique timeframes (sorted)
         if self.positions.index.nlevels == 2:
@@ -237,10 +234,10 @@ class STDC:
                     "Velocity": velocity
                 })
 
-        self.velocities = pd.DataFrame(velocity_records)
+        self.cd_velocities = pd.DataFrame(velocity_records)
 
-        return self.velocities
-   
+        return self.cd_velocities
+
     # --------------------------------
     # statistics methods
     # --------------------------------
