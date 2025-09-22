@@ -161,7 +161,9 @@ class STDC:
             # take the POSITIONS and reduce dimensionality using e.g. PCA with 2 components
             pca = PCA(n_components=self.__dimensions)
             self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index).fillna(0)
-            # OUTPUT SOMEWHERE: explained variance ratio: pca.explained_variance_ratio_
+            # percentage of variance explained by each of the selected components
+            self.explained_variance_ratio_ = pca.explained_variance_ratio_
+            print("Explained variance ratio:", self.explained_variance_ratio_)
             return self.reduced_positions
         else:
             self.reduced_positions = self.positions
