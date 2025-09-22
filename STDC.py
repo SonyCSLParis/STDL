@@ -15,8 +15,9 @@ class STDC:
                  timeframe='%Y',
                  time_type='actual',
                  agg_func=None,
-                 distance_function=cosine_distances,
+                 distance_function=None,
                  dimensions=None,
+                 reduction_function = None,
                  comparison='relative',
 
                  # configuration of random_data_gen()
@@ -59,11 +60,14 @@ class STDC:
         agg_func : callable, optional
             Custom aggregation function for interaction weights. Currently not implemented.
 
-        distance_function : callable, default sklearn.metrics.pairwise.cosine_distances
+        distance_function : callable, default None
             Function used to compute distances between node vectors.
 
         dimensions : int, optional
-            If provided, reduces positions into lower-dimensional space via PCA.
+            If provided, reduces positions into lower-dimensional space via, by deafult, PCA.
+
+        reduction_function = callable, default None
+            The user can specify what kind of reduction function should be applied. By defualt it's PCA.
 
         comparison : {'relative', 'absolute'}, default 'relative'
             Determines how distances are computed:
@@ -143,6 +147,7 @@ class STDC:
         self.__agg_func = agg_func
         self.__distance_function = distance_function
         self.__dimensions = dimensions
+        self.__reduction_function = reduction_function
         self.__comparison = comparison
 
         # random data config
@@ -315,25 +320,33 @@ class STDC:
             for tf in self.biadjacency_matrix.index.levels[1].unique():
                 tmp_raw_data = self.biadjacency_matrix.xs(tf, level='timeframe')
                 multi_index = pd.MultiIndex.from_arrays([tmp_raw_data.index, [tf]*len(tmp_raw_data.index)], names=[self.projected_layer, 'timeframe'])
-                tmp_cosine_dist_matrix = pd.DataFrame(
-                    self.__distance_function(tmp_raw_data),
-                    index=multi_index,
-                    columns=tmp_raw_data.index
-                )
+                if self.__distance_function is None:
+                    tmp_cosine_dist_matrix = pd.DataFrame(
+                        cosine_distances(tmp_raw_data),
+                        index=multi_index,
+                        columns=tmp_raw_data.index
+                    )
+                else:
+                    raise NotImplementedError("Other relative distance functions have not been implemented yet.")
+
                 relative_cosine_dist_matrices = pd.concat([relative_cosine_dist_matrices, tmp_cosine_dist_matrix], axis=0)
 
             self.positions = relative_cosine_dist_matrices.fillna(0)
             return self.positions
         
         else:
-            self.positions = pd.DataFrame(
-                self.__distance_function(self.biadjacency_matrix),
-                index=self.biadjacency_matrix.index,
-                columns=self.biadjacency_matrix.index
-            ).fillna(0)
-            return self.positions
+            if self.__distance_function is None:
+                self.positions = pd.DataFrame(
+                    cosine_distances(self.biadjacency_matrix),
+                    index=self.biadjacency_matrix.index,
+                    columns=self.biadjacency_matrix.index
+                ).fillna(0)
+            else:
+                raise NotImplementedError("Other absolute distance functions have not been implemented yet.")
 
-    def calculate_reduced_positions(self):
+            return self.positions   
+
+    def calculate_reduced_positions(self, verbose = False):
         """
         Apply dimensionality reduction (optional) on the distance matrix.
 
@@ -355,7 +368,7 @@ class STDC:
         >>> stdc = STDC(dimensions=2)
         >>> R = stdc.calculate_reduced_positions()
         >>> print(R.head())
-        # (The method prints: Explained variance ratio: [0.455609 0.420137])
+        # (If verbose = True, the method prints: Explained variance ratio: [0.455609 0.420137])
         # Sample head output (rows indexed by (node, timeframe); columns are PCA components 0 and 1):
         #                       0         1
         # id1   timeframe
@@ -369,15 +382,40 @@ class STDC:
             self.calculate_positions()
 
         if self.__dimensions is not None:
-            pca = PCA(n_components=self.__dimensions)
-            self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index).fillna(0)
-            self.explained_variance_ratio_ = pca.explained_variance_ratio_
-            print("Explained variance ratio:", self.explained_variance_ratio_)
+            if self.__reduction_function is None:
+                pca = PCA(n_components=self.__dimensions)
+                self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index).fillna(0)
+                self.explained_variance_ratio_ = pca.explained_variance_ratio_
+                if verbose:
+                    print("Explained variance ratio:", self.explained_variance_ratio_)
+            else:
+                raise NotImplementedError("Other dimension reduction functions have not been implemented yet.")
             return self.reduced_positions
         else:
             self.reduced_positions = self.positions
             return self.reduced_positions
+        
+    def calculate_aligned_reduced_positions(self):
 
+        '''
+        This function is a copy of the calculate_velocities function. It loses the first timeframe datapoint in order to align the timeframe with the one of the velocities. Now they are comparable.
+        '''
+
+        if self.reduced_positions is None:
+            self.calculate_reduced_positions()
+
+        velocities = pd.DataFrame()
+
+        for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
+            tmp = self.reduced_positions.xs(node, level=self.projected_layer).sort_index()
+            tmp2 = (tmp + tmp.shift(1)) / 2
+            tmp2 = tmp2.iloc[1:]
+            tmp2.index = pd.MultiIndex.from_arrays([[node]*len(tmp2), tmp.index[:-1], tmp.index[1:]], names=[self.projected_layer, 't1', 't2'])
+            velocities = pd.concat([velocities, tmp2], axis=0)
+
+        self.velocities = velocities
+        return self.velocities
+    
     def calculate_velocities(self):
         """
         Compute node velocities between consecutive timeframes.
@@ -398,7 +436,7 @@ class STDC:
         >>> V = stdc.calculate_velocities()
         >>> print(V.head())
 
-        # Sample head output (index = (node, t1, t2); columns = per-component differences):
+        # Sample head output (index = (node, t1, t2); columns = per-component differences), if we use time_type = 'actual' and dimensions=2:
         #                          0         1
         # id1   t1    t2
         # L1_0  2020  2021    0.18901  0.35712
@@ -478,8 +516,11 @@ class STDC:
                 if np.all(vec1 == 0) or np.all(vec2 == 0):
                     velocity = np.nan
                 else:
-                    velocity = self.__distance_function([vec1], [vec2])[0][0]
-
+                    if self.__distance_function is None:
+                        velocity = cosine_distances([vec1], [vec2])[0][0]
+                    else:
+                        raise NotImplementedError("Other velocity distance functions have not been implemented yet.")
+                    
                 velocity_records.append({
                     "Node": node,
                     "t1": current_tf,
