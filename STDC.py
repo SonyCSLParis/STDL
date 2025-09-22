@@ -437,7 +437,7 @@ class STDC:
         if self.reduced_positions is None:
             self.calculate_reduced_positions()
 
-        aligned = pd.DataFrame()
+        aligned_positions = pd.DataFrame()
 
         for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
             tmp = self.reduced_positions.xs(node, level=self.projected_layer).sort_index()
@@ -447,9 +447,9 @@ class STDC:
             [[node]*len(avg), tmp.index[:-1], tmp.index[1:]],
             names=[self.projected_layer, 't1', 't2']
             )
-            aligned = pd.concat([aligned, avg], axis=0)
+            aligned_positions = pd.concat([aligned_positions, avg], axis=0)
 
-        self.aligned_reduced_positions = aligned
+        self.aligned_reduced_positions = aligned_positions
         return self.aligned_reduced_positions
     
     def calculate_velocities(self):
