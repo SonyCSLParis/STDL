@@ -12,7 +12,7 @@ class STDC:
     def __init__(self, 
                  raw_data=None, 
                  field_names=['id1', 'id2', 'timestamp'],
-                 timeframe='Y', 
+                 timeframe='%Y',
                  time_type='actual',
                  agg_func=None,
                  distance_function=cosine_distances,
@@ -137,7 +137,7 @@ class STDC:
                 )
                 relative_cosine_dist_matrices = pd.concat([relative_cosine_dist_matrices, tmp_cosine_dist_matrix], axis=0)
 
-            self.positions = relative_cosine_dist_matrices
+            self.positions = relative_cosine_dist_matrices.fillna(0)
             return self.positions
         
         else:
@@ -146,7 +146,7 @@ class STDC:
                 self.__distance_function(self.biadjacency_matrix),
                 index=self.biadjacency_matrix.index,
                 columns=self.biadjacency_matrix.index
-            )
+            ).fillna(0)
             return self.positions
 
     
@@ -160,7 +160,7 @@ class STDC:
         if self.__dimensions is not None:
             # take the POSITIONS and reduce dimensionality using e.g. PCA with 2 components
             pca = PCA(n_components=self.__dimensions)
-            self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index)
+            self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index).fillna(0)
             # OUTPUT SOMEWHERE: explained variance ratio: pca.explained_variance_ratio_
             return self.reduced_positions
         else:
@@ -171,7 +171,7 @@ class STDC:
         """Calculates the velocities of the entities as the difference of the position between consecutive timeframes."""
         
         if self.reduced_positions is None:
-            self.reduced_positions = self.calculate_reduced_positions()
+            self.calculate_reduced_positions()
 
         # assuming reduced_positions has a MultiIndex with levels: (node, timeframe)
         velocities = pd.DataFrame()
@@ -193,7 +193,7 @@ class STDC:
         """
         # Check if reduced_positions already exist
         if self.reduced_positions is None:
-            self.reduced_positions = self.calculate_reduced_positions()
+            self.calculate_reduced_positions()
 
         # 5. Extract unique timeframes (sorted)
         if self.positions.index.nlevels == 2:
