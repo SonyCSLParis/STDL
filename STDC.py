@@ -19,18 +19,113 @@ class STDC:
                  dimensions=None,
                  comparison='relative',
 
-                 # confige of random_data_gen()
+                 # configuration of random_data_gen()
                  num_rows=1000,
                  n_layer_1=3,
                  n_layer_2=20,
                  start_dt=datetime(2020, 1, 1),
                  end_dt=datetime(2025, 1, 1)):
+        
+        """
+        Initialize an STDC (Social Thermodynamics Class) object.
+
+        This constructor sets up the framework for analyzing temporal bipartite networks, 
+        where nodes from one layer are projected against another over time. 
+        If no dataset is provided, a synthetic dataset is generated using 
+        'random_data_gen()'.
+
+        Parameters
+        ----------
+        raw_data : pd.DataFrame, optional
+            Input dataset containing bipartite edges with timestamps. Must have at least 
+            three columns matching 'field_names'. If None, random data will be generated.
+
+        field_names : list of str, default ['id1', 'id2', 'timestamp']
+            Names of the columns in 'raw_data'. Must contain:
+            - projected_layer (node set to analyze, e.g. 'id1')
+            - other_layer (opposite node set, e.g. 'id2')
+            - timestamp_col (time information)
+
+        timeframe : str or int, default '%Y'
+            Temporal resolution:
+            - If 'time_type='actual'': a datetime format string (e.g. '%Y', '%Y-%m').
+            - If 'time_type='intrinsic'': an integer defining the size of sequential bins.
+
+        time_type : {'actual', 'intrinsic'}, default 'actual'
+            How to interpret the timeframe:
+            - 'actual' → uses calendar units (year, month, week, day).
+            - 'intrinsic' → bins based on row order (useful for event streams).
+
+        agg_func : callable, optional
+            Custom aggregation function for interaction weights. Currently not implemented.
+
+        distance_function : callable, default sklearn.metrics.pairwise.cosine_distances
+            Function used to compute distances between node vectors.
+
+        dimensions : int, optional
+            If provided, reduces positions into lower-dimensional space via PCA.
+
+        comparison : {'relative', 'absolute'}, default 'relative'
+            Determines how distances are computed:
+            - 'relative' → per timeframe independently.
+            - 'absolute' → across all timeframes combined.
+
+        num_rows : int, default 1000
+            Number of rows to generate when simulating random data.
+
+        n_layer_1 : int, default 3
+            Number of unique nodes in the first layer (id1) for random data.
+
+        n_layer_2 : int, default 20
+            Number of unique nodes in the second layer (id2) for random data.
+
+        start_dt : datetime, default datetime(2020, 1, 1)
+            Start date for random timestamp generation.
+
+        end_dt : datetime, default datetime(2025, 1, 1)
+            End date for random timestamp generation.
+
+        Attributes
+        ----------
+        projected_layer : str
+            Column name representing the analyzed node set.
+        other_layer : str
+            Column name representing the secondary node set.
+        timestamp_col : str
+            Column name representing timestamps.
+        biadjacency_matrix : pd.DataFrame or None
+            Stores computed bipartite adjacency matrix.
+        positions : pd.DataFrame or None
+            Stores computed distance matrices.
+        reduced_positions : pd.DataFrame or None
+            Stores dimension-reduced positions.
+        velocities : pd.DataFrame or None
+            Stores computed velocities.
+
+        Raises
+        ------
+        ValueError
+            If 'field_names' is not a list of at least three elements.
+
+        Example
+        -------
+        >>> from datetime import datetime
+        >>> stdc = STDC(
+        ...     field_names=['user', 'item', 'time'],
+        ...     timeframe='%Y-%m',
+        ...     time_type='actual',
+        ...     dimensions=2
+        ... )
+        >>> print(stdc.raw_data.head())
+            id1   id2   timestamp
+        0   L1_0  L2_1  2020-02-15 12:45:33
+        1   L1_1  L2_3  2020-06-10 08:22:14
+        ...
+        """
 
         # check for correct field input
         if not isinstance(field_names, list) or len(field_names) < 3 or type(field_names) is not list:
             raise ValueError("field_names must be a list with 3 ordered elements: [projected_layer, other_layer, timestamp_col]; default: ['id1', 'id2', 'timestamp']")
-        
-        ### SHOULD ALL VARIABLE BE PRIVATE???
         
         # set up column names
         self.projected_layer = field_names[0]
@@ -58,14 +153,38 @@ class STDC:
         self.__end_dt = end_dt
 
         # generate random data if no data is passed
-        self.raw_data = raw_data if raw_data is not None else self.random_data_gen()
+        self.raw_data = raw_data if raw_data is not None else self.random_data_gen()  
 
     # --------------------------------
     # analysis & preprocessing methods
     # --------------------------------
 
     def random_data_gen(self):
-        """Generate random sample bipartite data using self defaults."""
+        """
+        Generate a random bipartite dataset for testing and demonstration.
+
+        Creates a synthetic dataset with two layers ('id1', 'id2') and a timestamp. 
+        This mimics a bipartite temporal graph structure (e.g., users interacting 
+        with items over time).
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with three columns:
+            - 'id1': entities from layer 1
+            - 'id2': entities from layer 2
+            - 'timestamp': datetime objects
+
+        Example
+        -------
+        >>> stdc = STDC(num_rows=10, n_layer_1=2, n_layer_2=3)
+        >>> df = stdc.random_data_gen()
+        >>> print(df.head())
+              id1   id2           timestamp
+        0    L1_1  L2_2  2021-09-04 18:43:14
+        1    L1_0  L2_0  2020-04-12 09:23:41
+        ...
+        """
         id1 = ["L1_" + str(x) for x in np.random.randint(self.__nlayer1, size=self.__num_rows)]
         id2 = ["L2_" + str(x) for x in np.random.randint(self.__nlayer2, size=self.__num_rows)]
         start_u = self.__start_dt.timestamp()
@@ -80,12 +199,36 @@ class STDC:
         return raw_data
     
     def calculate_timeframe(self):
-        """Add a timeframe column by binning timestamps."""
+        """
+        Add a 'timeframe' column to the raw dataset.
+
+        Depending on the configuration, the time dimension can be binned in 
+        either actual calendar units (year, month, week, day) or intrinsic units 
+        (equal chunks based on row order).
+
+        Returns
+        -------
+        pd.DataFrame
+            The input 'raw_data' DataFrame with an added 'timeframe' column.
+
+        Raises
+        ------
+        ValueError
+            If 'time_type' and 'timeframe' argument types are incompatible.
+        NotImplementedError
+            If an unsupported time_type is provided.
+
+        Example
+        -------
+        >>> stdc = STDC()
+        >>> df = stdc.calculate_timeframe()
+        >>> print(df[['timestamp', 'timeframe']].head())
+                 timestamp timeframe
+        0 2020-01-01 12:31:45     2020
+        1 2020-02-15 09:22:17     2020
+        ...
+        """
         if self.__time_type == 'actual':
-            #EXAMPLE: self.__timeframe = "%Y" for yearly bins
-            #EXAMPLE: self.__timeframe = "%Y-%m" for monthly bins
-            #EXAMPLE: self.__timeframe = "%Y-%W" for weekly bins
-            #EXAMPLE: self.__timeframe = "%Y-%m-%d" for daily bins
             if not isinstance(self.__timeframe, str):
                 raise ValueError("If time_type is actual, timeframe must be a string.")
             self.raw_data['timeframe'] =  self.raw_data['timestamp'].dt.strftime(self.__timeframe)
@@ -100,9 +243,29 @@ class STDC:
         return self.raw_data    
 
     def calculate_biadjacency_matrix(self):
-        """Builds biadjacency matrix (leaders x followers per timeframe)."""
+        """
+        Construct a bipartite adjacency matrix across timeframes.
 
-        # check if timeframe was calculated
+        Builds a matrix representation of interactions between 'projected_layer' 
+        and 'other_layer', grouped by timeframe. Each entry contains the count 
+        of interactions.
+
+        Returns
+        -------
+        pd.DataFrame
+            Biadjacency matrix with MultiIndex (projected_layer, timeframe) as rows 
+            and 'other_layer' as columns.
+
+        Example
+        -------
+        >>> stdc = STDC()
+        >>> B = stdc.calculate_biadjacency_matrix()
+        >>> print(B.head())
+        other_layer         L2_0  L2_1  L2_2 ...
+        id1  timeframe                          
+        L1_0 2020               2     0     1
+        L1_1 2020               0     1     3
+        """
         if 'timeframe' not in self.raw_data.columns:
             self.calculate_timeframe()
 
@@ -118,9 +281,31 @@ class STDC:
         return self.biadjacency_matrix
 
     def calculate_positions(self):
-        """calculates relative (per __timeframe) distance matrices or absolute matrix (all timeframes combined)."""
+        """
+        Compute distance matrices (relative or absolute) between nodes.
 
-        #check if biadjacency_matrix exists, if not calculate it
+        Depending on the configuration:
+        - relative: distances are computed per timeframe independently.
+        - absolute: distances are computed across all timeframes combined.
+
+        Returns
+        -------
+        pd.DataFrame
+            Distance matrix (cosine by default), indexed by (node, timeframe).
+
+        Example
+        -------
+        >>> stdc = STDC()
+        >>> P = stdc.calculate_positions()
+        >>> print(P.head())
+
+        # Sample head output (distances; rows indexed by (node, timeframe), columns = node names):
+        #                     L1_0      L1_1      L1_2
+        # id1   timeframe
+        # L1_0  2020         0.000000  0.278354  0.412097
+        # L1_1  2020         0.278354  0.000000  0.365421
+        # L1_2  2020         0.412097  0.365421  0.000000
+        """
         if self.biadjacency_matrix is None:
             self.calculate_biadjacency_matrix()
 
@@ -141,7 +326,6 @@ class STDC:
             return self.positions
         
         else:
-            #store absolute_positions as an object attribute
             self.positions = pd.DataFrame(
                 self.__distance_function(self.biadjacency_matrix),
                 index=self.biadjacency_matrix.index,
@@ -149,19 +333,44 @@ class STDC:
             ).fillna(0)
             return self.positions
 
-    
-    # add dim reduction possibility here
     def calculate_reduced_positions(self):
-        """Reduce the dimensionality of the positions if needed."""
+        """
+        Apply dimensionality reduction (optional) on the distance matrix.
 
+        Uses PCA to reduce 'positions' into a lower-dimensional embedding 
+        (e.g., 2D for visualization). If 'dimensions' is None, returns original 
+        positions.
+
+        Returns
+        -------
+        pd.DataFrame
+            Reduced positions DataFrame.
+
+        Notes
+        -----
+        - Saves explained variance ratio to 'self.explained_variance_ratio_' if PCA is applied.
+
+        Example
+        -------
+        >>> stdc = STDC(dimensions=2)
+        >>> R = stdc.calculate_reduced_positions()
+        >>> print(R.head())
+        # (The method prints: Explained variance ratio: [0.455609 0.420137])
+        # Sample head output (rows indexed by (node, timeframe); columns are PCA components 0 and 1):
+        #                       0         1
+        # id1   timeframe
+        # L1_0  2020     0.312345 -0.123456
+        # L1_1  2020    -0.045678  0.543210
+        # L1_2  2020     0.234567 -0.345678
+        # L1_0  2021     0.123456  0.234567
+        # L1_1  2021    -0.234567  0.111111
+        """
         if self.positions is None:
             self.calculate_positions()
 
         if self.__dimensions is not None:
-            # take the POSITIONS and reduce dimensionality using e.g. PCA with 2 components
             pca = PCA(n_components=self.__dimensions)
             self.reduced_positions = pd.DataFrame(pca.fit_transform(self.positions), index=self.positions.index).fillna(0)
-            # percentage of variance explained by each of the selected components
             self.explained_variance_ratio_ = pca.explained_variance_ratio_
             print("Explained variance ratio:", self.explained_variance_ratio_)
             return self.reduced_positions
@@ -170,12 +379,37 @@ class STDC:
             return self.reduced_positions
 
     def calculate_velocities(self):
-        """Calculates the velocities of the entities as the difference of the position between consecutive timeframes."""
-        
+        """
+        Compute node velocities between consecutive timeframes.
+
+        Velocity is calculated as the difference in reduced position vectors 
+        across consecutive timeframes.
+
+        Returns
+        -------
+        pd.DataFrame
+            MultiIndex DataFrame with levels (node, t1, t2), where each row 
+            contains the velocity vector for that transition.
+
+        Example
+        -------
+        >>> stdc = STDC(dimensions=2)
+        >>> stdc.calculate_reduced_positions()
+        >>> V = stdc.calculate_velocities()
+        >>> print(V.head())
+
+        # Sample head output (index = (node, t1, t2); columns = per-component differences):
+        #                          0         1
+        # id1   t1    t2
+        # L1_0  2020  2021    0.18901  0.35712
+        # L1_1  2020  2021   -0.05890  0.12034
+        # L1_2  2020  2021    0.00000 -0.04560
+        # L1_0  2021  2022   -0.12345  0.06780
+        # L1_1  2021  2022    0.04560 -0.00980
+        """
         if self.reduced_positions is None:
             self.calculate_reduced_positions()
 
-        # assuming reduced_positions has a MultiIndex with levels: (node, timeframe)
         velocities = pd.DataFrame()
 
         for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
@@ -189,27 +423,39 @@ class STDC:
 
     def calculate_custom_distance_velocities(self):
         """
-        Calculates the velocities of the entities as the difference of the position between consecutive timeframes.
-        Returns:
-        - velocities_df (pd.DataFrame): DataFrame with columns: ['Node', 't1', 't2', 'Velocity']
+        Compute velocity magnitudes between consecutive timeframes using 
+        a custom distance function.
+
+        Unlike 'calculate_velocities' (which uses raw vector differences), 
+        this method calculates the distance between reduced positions at 
+        consecutive timeframes for each node.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns: ['Node', 't1', 't2', 'Velocity']
+
+        Example
+        -------
+        >>> stdc = STDC(dimensions=2)
+        >>> stdc.calculate_reduced_positions()
+        >>> CDV = stdc.calculate_custom_distance_velocities()
+        >>> print(CDV.head())
+             Node    t1    t2  Velocity
+        0   L1_0  2020  2021  0.2345
         """
-        # Check if reduced_positions already exist
         if self.reduced_positions is None:
             self.calculate_reduced_positions()
 
-        # 5. Extract unique timeframes (sorted)
         if self.positions.index.nlevels == 2:
-            # MultiIndex: (node, timeframe)
             timeframes = self.positions.index.get_level_values("timeframe").unique().sort_values()
         elif self.positions.index.nlevels == 1 and 'timeframe' in self.positions.columns:
-            # Single index, timeframe as column
             timeframes = self.positions['timeframe'].unique().sort()
         else:
             raise ValueError("Positions index must contain 'timeframe'.")
         
         velocity_records = []
 
-        # 6. Loop over consecutive timeframes
         for i in range(len(timeframes) - 1):
             current_tf = timeframes[i]
             next_tf = timeframes[i + 1]
@@ -218,7 +464,6 @@ class STDC:
                 current_data = self.positions.xs(current_tf, level="timeframe")
                 next_data = self.positions.xs(next_tf, level="timeframe")
             except Exception:
-                # fallback for single index
                 current_data = self.positions[self.positions['timeframe'] == current_tf].drop(columns='timeframe')
                 next_data = self.positions[self.positions['timeframe'] == next_tf].drop(columns='timeframe')
 
