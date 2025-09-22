@@ -18,7 +18,7 @@ cd stdc
 
 ## Tutorial
 
-**Initialize STDC object**__
+**Initialize STDC object**  
 Create an STDC object with 2D reduced positions and yearly timeframes. The comparison is specified as 'absolute'.
 ```
 In [1]: from stdc import STDC
@@ -33,7 +33,7 @@ Out[3]:
 4    L1_1  L2_4  2021-03-21 09:20:18
 ```
 
-**Compute distance matrix**__
+**Compute distance matrix**  
 Compute the absolute distance matrices combining all timeframes based on the user-specified timeframe.
 ```
 In [4]: stdc.calculate_positions()
@@ -48,7 +48,7 @@ L1_1 2020           0.255528   0.230118   0.337972   0.000000   0.223293
      ...
 ```
 
-**Calculate reduced positions**__
+**Calculate reduced positions**  
 Apply dimensionality reduction (PCA by default) when calculating positions.
 ```
 In [6]: stdc.calculate_reduced_positions()
@@ -63,7 +63,7 @@ L1_1  2020    -0.045678  0.543210
 L1_1  2021    -0.234567  0.111111
 ```
 
-**Calculate velocities**__
+**Calculate velocities**  
 Compute node velocities as differences of reduced positions between consecutive timeframes.
 ```
 In [8]: stdc.calculate_velocities()
@@ -78,7 +78,7 @@ L1_1  2021  2022    0.04560 -0.00980
 L1_2  2020  2021    0.00000 -0.04560
 ```
 
-**Show biadjacency matrix**__
+**Show biadjacency matrix**  
 By now, the biadjacency matrix has been calculated as a necessary step, when providing the distances matrix. The user can retrieve it simply by accessing it as an object attribute.
 ```
 In [10]: stdc.biadjacency_matrix.head()
@@ -92,7 +92,7 @@ L1_0 2021               0     0     1     0     0
 L1_1 2021               0     0     0     0     1
 ```
 
-**Show raw_data columns**__
+**Show raw_data columns**  
 The timeframe column has also been created and calculated as a necessary step of the previous analyses.
 ```
 In [11]: stdc.raw_data[['timestamp', 'timeframe']].head()
