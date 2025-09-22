@@ -396,25 +396,61 @@ class STDC:
             return self.reduced_positions
         
     def calculate_aligned_reduced_positions(self):
+        """
+        Calculate and align reduced positions to match the timeframes of velocities.
 
-        '''
-        This function is a copy of the calculate_velocities function. It loses the first timeframe datapoint in order to align the timeframe with the one of the velocities. Now they are comparable.
-        '''
+        This method computes the average of consecutive reduced positions for each node,
+        effectively aligning the reduced positions with the timeframes used for velocity calculations.
+        The first timeframe data point is omitted to ensure the resulting DataFrame is directly comparable
+        to the velocities DataFrame, as both will now reference the same time intervals.
 
+        If reduced positions have not yet been calculated, this method will call `calculate_reduced_positions()`
+        to generate them.
+
+        The resulting DataFrame uses a MultiIndex with the following levels:
+            - The projected layer (e.g., node or entity identifier)
+            - 't1': the starting time index of the interval
+            - 't2': the ending time index of the interval
+
+        The aligned reduced positions are stored in `self.aligned_reduced_positions` and also returned.
+
+        Returns
+        -------
+        pd.DataFrame
+            A DataFrame containing the aligned reduced positions, indexed by the projected layer,
+            't1', and 't2', and aligned with the velocity timeframes.
+
+        Example
+        -------
+        >>> stdc = STDC(dimensions=2)
+        >>> stdc.calculate_reduced_positions()
+        >>> aligned = stdc.calculate_aligned_reduced_positions()
+        >>> print(aligned.head())
+        # Sample head output (index = (node, t1, t2); columns = per-component averages):
+        #                          0         1
+        # id1   t1    t2
+        # L1_0  2020  2021   -0.226492  0.151122
+        #       2021  2022   -0.223539 -0.068125
+        #       2022  2023   -0.113316 -0.096172
+        #       2023  2024   -0.038281 -0.053525
+        """
         if self.reduced_positions is None:
             self.calculate_reduced_positions()
 
-        velocities = pd.DataFrame()
+        aligned = pd.DataFrame()
 
         for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
             tmp = self.reduced_positions.xs(node, level=self.projected_layer).sort_index()
-            tmp2 = (tmp + tmp.shift(1)) / 2
-            tmp2 = tmp2.iloc[1:]
-            tmp2.index = pd.MultiIndex.from_arrays([[node]*len(tmp2), tmp.index[:-1], tmp.index[1:]], names=[self.projected_layer, 't1', 't2'])
-            velocities = pd.concat([velocities, tmp2], axis=0)
+            avg = (tmp.shift(-1) + tmp) / 2
+            avg = avg.iloc[:-1]
+            avg.index = pd.MultiIndex.from_arrays(
+            [[node]*len(avg), tmp.index[:-1], tmp.index[1:]],
+            names=[self.projected_layer, 't1', 't2']
+            )
+            aligned = pd.concat([aligned, avg], axis=0)
 
-        self.velocities = velocities
-        return self.velocities
+        self.aligned_reduced_positions = aligned
+        return self.aligned_reduced_positions
     
     def calculate_velocities(self):
         """
