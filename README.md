@@ -9,13 +9,6 @@ It extends beyond static graph libraries by computing **graph dynamics**, includ
 
 ---
 
-## Installation
-
-```bash
-git clone https://github.com/yourusername/stdc.git
-cd stdc
-```
-
 ## Tutorial
 
 **Initialize STDC object**  
