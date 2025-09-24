@@ -203,7 +203,7 @@ class STDC:
         })
         return raw_data
     
-    def calculate_timeframe(self):
+    def calculate_timeframe(self, filter_always_present=True):
         """
         Add a 'timeframe' column to the raw dataset.
 
@@ -236,7 +236,7 @@ class STDC:
         if self.__time_type == 'actual':
             if not isinstance(self.__timeframe, str):
                 raise ValueError("If time_type is actual, timeframe must be a string.")
-            self.raw_data['timeframe'] =  self.raw_data['timestamp'].dt.strftime(self.__timeframe)
+            self.raw_data['timeframe'] =  self.raw_data[self.timestamp_col].dt.strftime(self.__timeframe)
         elif self.__time_type == 'intrinsic':
             if not isinstance(self.__timeframe, int):
                 raise ValueError("If time_type is intrinsic, timeframe must be an integer.")
@@ -245,7 +245,13 @@ class STDC:
             self.raw_data['timeframe'] = np.floor(self.raw_data['timeframe'] / self.__timeframe).astype(int)
         else:
             raise NotImplementedError("Not implemented yet.")
-        return self.raw_data    
+
+        if filter_always_present:
+            n_timeframes = self.raw_data['timeframe'].nunique()
+            tmp = self.raw_data.groupby(self.projected_layer)['timeframe'].nunique()
+            layer1_always_present = tmp[tmp == n_timeframes].index.tolist()
+            self.raw_data = self.raw_data[self.raw_data[self.projected_layer].isin(layer1_always_present)]
+        return self.raw_data
 
     def calculate_biadjacency_matrix(self):
         """
