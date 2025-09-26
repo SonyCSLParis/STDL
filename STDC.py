@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 
 # -------------------------
 # STDC definition
@@ -136,11 +137,6 @@ class STDC:
         self.other_layer = field_names[1]
         self.timestamp_col = field_names[2]
 
-        self.biadjacency_matrix = None
-        self.reduced_positions = None
-        self.positions = None
-        self.velocities = None
-
         # global defaults
         self.__timeframe = timeframe
         self.__time_type = time_type
@@ -158,7 +154,7 @@ class STDC:
         self.__end_dt = end_dt
 
         # generate random data if no data is passed
-        self.raw_data = raw_data if raw_data is not None else self.random_data_gen()  
+        self.raw_data = raw_data.copy() if raw_data is not None else self.random_data_gen()  
 
     # --------------------------------
     # analysis & preprocessing methods
@@ -317,7 +313,7 @@ class STDC:
         # L1_1  2020         0.278354  0.000000  0.365421
         # L1_2  2020         0.412097  0.365421  0.000000
         """
-        if self.biadjacency_matrix is None:
+        if not hasattr(self, 'biadjacency_matrix'):
             self.calculate_biadjacency_matrix()
 
         if self.__comparison == 'relative':
@@ -384,7 +380,7 @@ class STDC:
         # L1_0  2021     0.123456  0.234567
         # L1_1  2021    -0.234567  0.111111
         """
-        if self.positions is None:
+        if not hasattr(self, 'positions'):
             self.calculate_positions()
 
         if self.__dimensions is not None:
@@ -440,7 +436,7 @@ class STDC:
         #       2022  2023   -0.113316 -0.096172
         #       2023  2024   -0.038281 -0.053525
         """
-        if self.reduced_positions is None:
+        if not hasattr(self, 'reduced_positions'):
             self.calculate_reduced_positions()
 
         aligned_positions = pd.DataFrame()
@@ -524,7 +520,7 @@ class STDC:
              Node    t1    t2  Velocity
         0   L1_0  2020  2021  0.2345
         """
-        if self.reduced_positions is None:
+        if not hasattr(self, 'reduced_positions'):
             self.calculate_reduced_positions()
 
         if self.positions.index.nlevels == 2:
@@ -577,10 +573,45 @@ class STDC:
     # --------------------------------
     # statistics methods
     # --------------------------------
-  
+
+    def calculate_basic_ts_stats(self, temp=True, vol=True, vel_CoM=True): 
+        if not hasattr(self, 'aligned_reduced_positions'):
+            self.calculate_aligned_reduced_positions()
+        if not hasattr(self, 'velocities'):
+            self.calculate_velocities()
+
+        self.p_stats = self.aligned_reduced_positions.groupby(['t1','t2']).agg(['mean','var'])
+        self.v_stats = self.velocities.groupby(['t1','t2']).agg(['mean','var'])
+        return self.p_stats, self.v_stats
+
+    def calculate_thermodyn_ts_stats(self, temp=True, vol=True, vel_CoM=True):
+        if not hasattr(self, 'p_stats') or not hasattr(self, 'v_stats'):
+            self.calculate_basic_ts_stats()
+        
+        vol_ts = np.sqrt(self.p_stats.xs('var', axis=1, level=1)).prod(axis=1)
+        temp_ts = self.v_stats.xs('var', axis=1, level=1).sum(axis=1)
+        vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis=1, level=1), 2).sum(axis=1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
+        self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts})
+        return self.thermo_stats
+
     # --------------------------------
     # visualisation methods
     # --------------------------------
+    def plot_center_of_mass_trajectory(self):
+        if not hasattr(self, 'p_stats'):
+            self.calculate_basic_ts_stats()
+        if self.p_stats.xs('mean', axis=1, level=1).shape[1] > 2:
+            print("Warning: More than 2 dimensions detected. Plotting only the first two dimensions.")
+            
+        plt.scatter(self.p_stats[0]['mean'], self.p_stats[1]['mean'], 
+                 c = np.linspace(0, 1, self.p_stats.shape[0]), 
+                 cmap=plt.cm.bwr,marker='o', label='Trajectory')
+
+        plt.quiver(
+            self.p_stats[0]['mean'][:-1], self.p_stats[1]['mean'][:-1],                # start points
+            self.p_stats[0]['mean'].diff()[1:], self.p_stats[1]['mean'].diff()[1:],    # vector components
+            scale_units='xy', angles='xy', scale=1, color='black', width=0.006
+        )        
 
     def plot_pca_interactive():
         pass
