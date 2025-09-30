@@ -4,6 +4,10 @@ from datetime import datetime
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+import scipy.sparse as sp
+
+#network libraries
+import graph_tool.all as gt
 
 # -------------------------
 # STDC definition
@@ -346,7 +350,84 @@ class STDC:
             else:
                 raise NotImplementedError("Other absolute distance functions have not been implemented yet.")
 
-            return self.positions   
+            return self.positions
+        
+    
+    def calculate_graphs(self):
+        # check if positions exist
+        if not hasattr(self, 'positions'):
+            self.calculate_positions()
+
+        self.graphs = {}
+
+        # filter for time frame
+        for tf in self.positions.index.levels[1].unique():
+            filtered = 1 - self.positions.xs(tf, level='timeframe')
+            #filter for columns as well, if comparison is absolute
+            if self.__comparison == 'absolute':
+                filtered = filtered.xs(tf, level='timeframe', axis=1)
+
+            # construct graph
+            g = gt.Graph(g=sp.coo_array(filtered.values), directed=False)
+            gt.remove_self_loops(g)
+            self.graphs[tf] = g
+
+        return self.graphs
+
+    def calculate_communities(self):
+        # check for existence of graphs
+        if not hasattr(self, 'graphs'):
+            self.calculate_graphs()
+
+        #calculates for communities in every single timeframe
+        self.communities = {}
+
+        # for every timeframe: graph, calculate community detection
+        for tf, graph in self.graphs.items():
+            # calculate communities
+            state = gt.minimize_blockmodel_dl(graph) # adding state = gt.ModularityState introduced an error gt.ModularityState object has no attribute 'get_blocks'
+            self.communities[tf] = state.get_blocks()
+
+        return self.communities
+
+    def calculate_modularity(self):
+        #calculates modularity on each of the graph
+        if not hasattr(self, 'communities'):
+            self.calculate_communities()
+
+        # turn to dataframe
+        self.modularity = pd.DataFrame()
+        
+        # for every graph from the community detection function that stores the graphs with the communities
+        for tf, community in self.communities.items():
+            # Check if 'weight' edge property exists
+            if self.graphs[tf].num_edges() > 0:
+                modularity = gt.modularity(self.graphs[tf], community, weight=self.graphs[tf].ep.weight)
+                self.modularity = pd.concat([self.modularity, pd.DataFrame({'timeframe': [tf], 'modularity': [modularity]})], ignore_index=True)
+            else:
+                print(f"Graph at timeframe {tf} has no edges. Modularity is not calculated.")
+
+        return self.modularity
+
+    def calculate_aligned_modularity(self):
+        # does the same as calculate_modularity, but aligns modularity the same way as the velocities
+        # return average of modularities of two consecutive timeframes
+        if not hasattr(self, 'modularity'):
+            self.calculate_modularity()
+
+        self.aligned_modularity = pd.DataFrame()
+
+        # sort timeframes
+        timeframes = sorted(self.modularity['timeframe'])
+
+        # iterate over consecutive pairs
+        for t1, t2 in zip(timeframes[:-1], timeframes[1:]):
+            mod1 = self.modularity.loc[self.modularity['timeframe'] == t1, 'modularity'].values[0]
+            mod2 = self.modularity.loc[self.modularity['timeframe'] == t2, 'modularity'].values[0]
+            avg_modularity = (mod1 + mod2) / 2
+            self.aligned_modularity = pd.concat([self.aligned_modularity, pd.DataFrame({'t1': [t1], 't2': [t2], 'modularity': [avg_modularity]})],ignore_index=True)
+
+        return self.aligned_modularity
 
     def calculate_reduced_positions(self, verbose = False):
         """
