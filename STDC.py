@@ -395,7 +395,6 @@ class STDC:
         if not hasattr(self, 'communities'):
             self.calculate_communities()
 
-        # turn to dataframe
         self.modularity = pd.DataFrame()
         
         # for every graph from the community detection function that stores the graphs with the communities
