@@ -1,6 +1,5 @@
 pandas
 numpy
 scikit-learn
-python-igraph
 graph-tool
-pyintergraph
+matplotlib

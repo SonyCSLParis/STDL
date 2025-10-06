@@ -385,8 +385,8 @@ class STDC:
         # for every timeframe: graph, calculate community detection
         for tf, graph in self.graphs.items():
             # calculate communities
-            state = gt.minimize_blockmodel_dl(graph) # adding state = gt.ModularityState introduced an error gt.ModularityState object has no attribute 'get_blocks'
-            self.communities[tf] = state.get_blocks()
+            state = gt.minimize_blockmodel_dl(graph, state=gt.ModularityState) #state=gt.ModularityState maximizes modularity
+            self.communities[tf] = state.b #state.b should now be the equivalent of state.get_blocks() and returns a vertex property map
 
         return self.communities
 
