@@ -11,8 +11,6 @@ It extends beyond static graph libraries by computing **graph dynamics**, includ
 ### Credits
 Pietro Gravino, Vito D. P. Servedio, Giulio Prevedello, Juraj Simkovic
 
----
-
 ## Tutorial
 
 **Initialize STDC object**  
