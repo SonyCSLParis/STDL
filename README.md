@@ -1,18 +1,22 @@
-# STDC – Social Thermodynamics Class
+# STDL – Social Thermodynamics Library
 
-STDC is a Python package for analyzing **temporal bipartite networks**.  
+## Introduction
+STDL is a Python package for analyzing **temporal bipartite networks**.  
 It extends beyond static graph libraries by computing **graph dynamics**, including:  
 - Time-calculated bipartite adjacency matrices  
 - Distance matrices (relative or absolute)  
 - Dimensionality reduction of positions  
 - Node velocities across timeframes  
 
+### Credits
+Pietro Gravino, Vito D. P. Servedio, Giulio Prevedello, Juraj Simkovic
+
 ---
 
 ## Tutorial
 
 **Initialize STDC object**  
-Create an STDC object with 2D reduced positions and yearly timeframes. The comparison is specified as 'absolute'.
+Create an STDC (Social Thermodynamics Class) object with 2D reduced positions and yearly timeframes. The comparison is specified as 'absolute'.
 ```
 In [1]: from stdc import STDC
 In [2]: stdc = STDC(dimensions=2, timeframe='%Y', comparison='absolute')
