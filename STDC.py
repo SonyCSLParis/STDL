@@ -1,10 +1,16 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from sklearn.metrics.pairwise import cosine_distances
-from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
 import scipy.sparse as sp
+import matplotlib.pyplot as plt
+
+#distance functions
+from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics import pairwise_distances
+
+#dimensionality reduction
+from sklearn.decomposition import PCA
+import umap
 
 #network libraries
 import graph_tool.all as gt
@@ -20,7 +26,7 @@ class STDC:
                  timeframe='%Y',
                  time_type='actual',
                  agg_func=None,
-                 distance_function=None,
+                 distance_function=None, #expects a string
                  dimensions=None,
                  reduction_function = None,
                  comparison='relative',
@@ -333,7 +339,11 @@ class STDC:
                         columns=tmp_raw_data.index
                     )
                 else:
-                    raise NotImplementedError("Other relative distance functions have not been implemented yet.")
+                    tmp_cosine_dist_matrix = pd.DataFrame(
+                        pairwise_distances(tmp_raw_data, metric = self.__distance_function),
+                        index=multi_index,
+                        columns=tmp_raw_data.index
+                    )
 
                 relative_cosine_dist_matrices = pd.concat([relative_cosine_dist_matrices, tmp_cosine_dist_matrix], axis=0)
 
@@ -348,8 +358,11 @@ class STDC:
                     columns=self.biadjacency_matrix.index
                 ).fillna(0)
             else:
-                raise NotImplementedError("Other absolute distance functions have not been implemented yet.")
-
+                self.positions = pd.DataFrame(
+                    pairwise_distances(self.biadjacency_matrix, metric = self.__distance_function),
+                    index=self.biadjacency_matrix.index,
+                    columns=self.biadjacency_matrix.index
+                ).fillna(0)
             return self.positions
         
     
@@ -471,7 +484,8 @@ class STDC:
                 if verbose:
                     print("Explained variance ratio:", self.explained_variance_ratio_)
             else:
-                raise NotImplementedError("Other dimension reduction functions have not been implemented yet.")
+                u = umap.UMAP(n_components=self.__dimensions, metric = self.__distance_function if self.__distance_function is not None else 'cosine')
+                self.reduced_positions = pd.DataFrame(u.fit_transform(self.positions), index=self.positions.index).fillna(0)
             return self.reduced_positions
         else:
             self.reduced_positions = self.positions
