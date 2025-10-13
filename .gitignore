@@ -14,6 +14,8 @@ STDL_test_old.ipynb
 STDL_modularity_test_juraj.ipynb
 modularity_test2.ipynb
 modularity_test3.ipynb
+*.parquet
+.old_venv
 
 
 __pycache__
