@@ -696,16 +696,15 @@ class STDC:
             self.calculate_basic_ts_stats()
         if self.p_stats.xs('mean', axis=1, level=1).shape[1] > 2:
             print("Warning: More than 2 dimensions detected. Plotting only the first two dimensions.")
-            
-        plt.scatter(self.p_stats[0]['mean'], self.p_stats[1]['mean'], 
-                 c = np.linspace(0, 1, self.p_stats.shape[0]), 
-                 cmap=plt.cm.bwr,marker='o', label='Trajectory')
+        x = (self.p_stats.xs('mean', level=1, axis=1)).iloc[:, :1]
+        y = (self.p_stats.xs('mean', level=1, axis=1)).iloc[:, 1:2]
 
-        plt.quiver(
-            self.p_stats[0]['mean'][:-1], self.p_stats[1]['mean'][:-1],                # start points
-            self.p_stats[0]['mean'].diff()[1:], self.p_stats[1]['mean'].diff()[1:],    # vector components
-            scale_units='xy', angles='xy', scale=1, color='black', width=0.006
-        )        
+        plt.scatter(x, y, c = np.linspace(0, 1, self.p_stats.shape[0]), 
+                 cmap=plt.cm.rainbow,marker='o', label='Trajectory')
+        plt.colorbar(label='Time progression')
+
+        plt.quiver( x[:-1], y[:-1], x.diff()[1:], y.diff()[1:],    # vector components
+            scale_units='xy', angles='xy', scale=1, color='black', width=0.006, alpha=0.5)
 
     def plot_pca_interactive():
         pass
