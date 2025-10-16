@@ -381,7 +381,7 @@ class STDC:
             filtered = 1 - self.positions.xs(tf, level='timeframe')
             #filter for columns as well, if comparison is absolute
             if self.__comparison == 'absolute':
-                filtered = filtered.xs(tf, level='timeframe', axis=1)
+                filtered = filtered.xs(tf, level='timeframe', axis = 1)
 
             # construct graph
             g = gt.Graph(g=sp.coo_array(filtered.values), directed=False)
@@ -699,9 +699,9 @@ class STDC:
         if not hasattr(self, 'aligned_modularities'):
             self.calculate_aligned_modularities()
         
-        vol_ts = np.sqrt(self.p_stats.xs('var', axis=1, level=1)).prod(axis=1)
-        temp_ts = self.v_stats.xs('var', axis=1, level=1).sum(axis=1)
-        vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis=1, level=1), 2).sum(axis=1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
+        vol_ts = np.sqrt(self.p_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None))).prod(axis = 1)
+        temp_ts = self.v_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None)).sum(axis = 1)
+        vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)), 2).sum(axis = 1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
         
         self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts, 'Mod': self.aligned_modularities.set_index(['t1','t2'])['modularity']})
         return self.thermo_stats
@@ -712,10 +712,10 @@ class STDC:
     def plot_center_of_mass_trajectory(self):
         if not hasattr(self, 'p_stats'):
             self.calculate_basic_ts_stats()
-        if self.p_stats.xs('mean', axis=1, level=1).shape[1] > 2:
+        if self.p_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)).shape[1] > 2:
             print("Warning: More than 2 dimensions detected. Plotting only the first two dimensions.")
-        x = (self.p_stats.xs('mean', level=1, axis=1)).iloc[:, :1]
-        y = (self.p_stats.xs('mean', level=1, axis=1)).iloc[:, 1:2]
+        x = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]
+        y = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]
 
         plt.scatter(x, y, c = np.linspace(0, 1, self.p_stats.shape[0]), 
                  cmap=plt.cm.rainbow,marker='o', label='Trajectory')
