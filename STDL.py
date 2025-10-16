@@ -14,6 +14,7 @@ import umap
 
 #network libraries
 import graph_tool.all as gt
+import igraph as ig
 
 # -------------------------
 # STDC definition
@@ -29,6 +30,7 @@ class STDC:
                  distance_function=None, #expects a string
                  dimensions=None,
                  reduction_function = None,
+                 community_detection = "Leiden",
                  comparison='relative',
 
                  # configuration of random_data_gen()
@@ -154,6 +156,7 @@ class STDC:
         self.__distance_function = distance_function
         self.__dimensions = dimensions
         self.__reduction_function = reduction_function
+        self.__community_detection = community_detection
         self.__comparison = comparison
 
         # random data config
@@ -398,48 +401,60 @@ class STDC:
         # for every timeframe: graph, calculate community detection
         for tf, graph in self.graphs.items():
             # calculate communities
-            state = gt.minimize_blockmodel_dl(graph, state=gt.ModularityState) #state=gt.ModularityState maximizes modularity
-            self.communities[tf] = state.b #state.b should now be the equivalent of state.get_blocks() and returns a vertex property map
-
+            if self.__community_detection == "SBM":
+                state = gt.minimize_blockmodel_dl(graph, state_args=dict(recs=[graph.ep.weight], rec_types=["real-exponential"], deg_corr=True))
+                self.communities[tf] = state.b #state.b should now be the equivalent of state.get_blocks() and returns a vertex property map
+            elif self.__community_detection == "Leiden":
+                igg = ig.Graph.from_graph_tool(graph)
+                ig_partition = igg.community_leiden(objective_function='modularity',weights=igg.es['weight'], n_iterations=10)
+                gt_partition = graph.new_vertex_property("int")
+                for e, part in enumerate(ig_partition):
+                    for node in part:
+                        gt_partition[node] = e
+                self.communities[tf] = gt_partition
+            else:
+                print("Other community detection methods have not been implemented yet.")
+                # state = gt.minimize_blockmodel_dl(g, state_args=dict(recs=[g.ep.weight], rec_types=["real-exponential"], deg_corr=True))
+                pass
         return self.communities
 
-    def calculate_modularity(self):
+    def calculate_modularities(self):
         #calculates modularity on each of the graph
         if not hasattr(self, 'communities'):
             self.calculate_communities()
 
-        self.modularity = pd.DataFrame()
+        self.modularities = pd.DataFrame()
         
         # for every graph from the community detection function that stores the graphs with the communities
         for tf, community in self.communities.items():
             # Check if 'weight' edge property exists
             if self.graphs[tf].num_edges() > 0:
                 modularity = gt.modularity(self.graphs[tf], community, weight=self.graphs[tf].ep.weight)
-                self.modularity = pd.concat([self.modularity, pd.DataFrame({'timeframe': [tf], 'modularity': [modularity]})], ignore_index=True)
+                self.modularities = pd.concat([self.modularities, pd.DataFrame({'timeframe': [tf], 'modularity': [modularity]})], ignore_index=True)
             else:
                 print(f"Graph at timeframe {tf} has no edges. Modularity is not calculated.")
 
-        return self.modularity
+        return self.modularities
 
-    def calculate_aligned_modularity(self):
-        # does the same as calculate_modularity, but aligns modularity the same way as the velocities
+    def calculate_aligned_modularities(self):
+        # does the same as calculate_modularities, but aligns modularity the same way as the velocities
         # return average of modularities of two consecutive timeframes
         if not hasattr(self, 'modularity'):
-            self.calculate_modularity()
+            self.calculate_modularities()
 
-        self.aligned_modularity = pd.DataFrame()
+        self.aligned_modularities = pd.DataFrame()
 
         # sort timeframes
-        timeframes = sorted(self.modularity['timeframe'])
+        timeframes = sorted(self.modularities['timeframe'])
 
         # iterate over consecutive pairs
         for t1, t2 in zip(timeframes[:-1], timeframes[1:]):
-            mod1 = self.modularity.loc[self.modularity['timeframe'] == t1, 'modularity'].values[0]
-            mod2 = self.modularity.loc[self.modularity['timeframe'] == t2, 'modularity'].values[0]
+            mod1 = self.modularities.loc[self.modularities['timeframe'] == t1, 'modularity'].values[0]
+            mod2 = self.modularities.loc[self.modularities['timeframe'] == t2, 'modularity'].values[0]
             avg_modularity = (mod1 + mod2) / 2
-            self.aligned_modularity = pd.concat([self.aligned_modularity, pd.DataFrame({'t1': [t1], 't2': [t2], 'modularity': [avg_modularity]})],ignore_index=True)
+            self.aligned_modularities = pd.concat([self.aligned_modularities, pd.DataFrame({'t1': [t1], 't2': [t2], 'modularity': [avg_modularity]})],ignore_index=True)
 
-        return self.aligned_modularity
+        return self.aligned_modularities
 
     def calculate_reduced_positions(self, verbose = False):
         """
@@ -678,14 +693,17 @@ class STDC:
         self.v_stats = self.velocities.groupby(['t1','t2']).agg(['mean','var'])
         return self.p_stats, self.v_stats
 
-    def calculate_thermodyn_ts_stats(self, temp=True, vol=True, vel_CoM=True):
+    def calculate_thermodyn_ts_stats(self):
         if not hasattr(self, 'p_stats') or not hasattr(self, 'v_stats'):
             self.calculate_basic_ts_stats()
+        if not hasattr(self, 'aligned_modularities'):
+            self.calculate_aligned_modularities()
         
         vol_ts = np.sqrt(self.p_stats.xs('var', axis=1, level=1)).prod(axis=1)
         temp_ts = self.v_stats.xs('var', axis=1, level=1).sum(axis=1)
         vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis=1, level=1), 2).sum(axis=1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
-        self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts})
+        
+        self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts, 'Mod': self.aligned_modularities.set_index(['t1','t2'])['modularity']})
         return self.thermo_stats
 
     # --------------------------------
