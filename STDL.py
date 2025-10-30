@@ -2,7 +2,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import scipy.sparse as sp
+
+#plotting
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from IPython.display import HTML
 
 #distance functions
 from sklearn.metrics.pairwise import cosine_distances
@@ -247,9 +251,9 @@ class STDC:
                 raise ValueError("If time_type is actual, timeframe must be a string.")
             self.raw_data['timeframe'] =  self.raw_data[self.timestamp_col].dt.strftime(self.__timeframe)
         elif self.__time_type == 'intrinsic':
-            if not isinstance(self.__timeframe, int):
+            if not isinstance(self.__timeframe, (int)):
                 raise ValueError("If time_type is intrinsic, timeframe must be an integer.")
-            self.raw_data.sort_values(by=[self.timestamp_col], inplace=True)
+            self.raw_data = self.raw_data.sort_values(by=[self.timestamp_col])
             self.raw_data['timeframe'] = range(len(self.raw_data))
             self.raw_data['timeframe'] = np.floor(self.raw_data['timeframe'] / self.__timeframe).astype(int)
         else:
@@ -354,17 +358,11 @@ class STDC:
             return self.positions
         
         else:
-            if self.__distance_function is None:
-                self.positions = pd.DataFrame(
-                    cosine_distances(self.biadjacency_matrix),
-                    index=self.biadjacency_matrix.index,
-                    columns=self.biadjacency_matrix.index
-                ).fillna(0)
-            else:
-                self.positions = pd.DataFrame(
-                    pairwise_distances(self.biadjacency_matrix, metric = self.__distance_function),
-                    index=self.biadjacency_matrix.index,
-                    columns=self.biadjacency_matrix.index
+            self.positions = pd.DataFrame(
+                cosine_distances(self.biadjacency_matrix) if self.__distance_function is None
+                    else pairwise_distances(self.biadjacency_matrix, metric = self.__distance_function),
+                index=self.biadjacency_matrix.index,
+                columns=self.biadjacency_matrix.index
                 ).fillna(0)
             return self.positions
         
@@ -592,7 +590,7 @@ class STDC:
         # L1_0  2021  2022   -0.12345  0.06780
         # L1_1  2021  2022    0.04560 -0.00980
         """
-        if self.reduced_positions is None:
+        if not hasattr(self, 'reduced_positions'):
             self.calculate_reduced_positions()
 
         velocities = pd.DataFrame()
@@ -723,6 +721,92 @@ class STDC:
 
         plt.quiver( x[:-1], y[:-1], x.diff()[1:], y.diff()[1:],    # vector components
             scale_units='xy', angles='xy', scale=1, color='black', width=0.006, alpha=0.5)
+        
+    def plot_reduced_positions_animation(self, figsize=(6, 6), interval=1000, fps=1, save_path=None):
+        """
+        Create an animated visualization of reduced positions over time.
+
+        Generates an animation showing how node positions evolve across timeframes
+        in the reduced dimensional space (PCA, UMAP, etc.).
+
+        Parameters
+        ----------
+        figsize : tuple of int, default (6, 6)
+            Figure size in inches (width, height).
+        interval : int, default 1000
+            Delay between frames in milliseconds.
+        fps : int, default 1
+            Frames per second when saving as GIF.
+        save_path : str, optional
+            If provided, saves the animation as a GIF to this path.
+            Requires 'pillow' package.
+
+        Returns
+        -------
+        IPython.display.HTML
+            Animated HTML display for Jupyter notebooks.
+
+        Example
+        -------
+        >>> stdc = STDC(dimensions=2, reduction_function='umap')
+        >>> stdc.plot_reduced_positions_animation(save_path="evolution.gif")
+        """
+        if not hasattr(self, 'reduced_positions'):
+            self.calculate_reduced_positions()
+
+        # Determine axis labels based on reduction function
+        if self.__reduction_function is None:
+            reduction_name = "PCA"
+        else:
+            reduction_name = "UMAP"
+
+        # Sort by timeframe
+        sorted_reduced_positions = self.reduced_positions.sort_index(level='timeframe')
+
+        # Get unique timeframes
+        timeframes = sorted_reduced_positions.index.get_level_values('timeframe').unique().sort_values()
+
+        # Prepare figure
+        fig, ax = plt.subplots(figsize=figsize)
+        scat = ax.scatter([], [], s=50, alpha=0.6)
+
+        ax.set_xlabel(f"{reduction_name} 1")
+        ax.set_ylabel(f"{reduction_name} 2")
+        ax.set_title(f"{reduction_name} Evolution Over Time")
+
+        x_min, x_max = sorted_reduced_positions.iloc[:, 0].min(), sorted_reduced_positions.iloc[:, 0].max()
+        y_min, y_max = sorted_reduced_positions.iloc[:, 1].min(), sorted_reduced_positions.iloc[:, 1].max()
+
+        # Set limits
+        x_lowlim = x_min - 0.05 * (x_max - x_min)
+        x_uplim = x_max + 0.05 * (x_max - x_min)
+        y_lowlim = y_min - 0.05 * (y_max - y_min)
+        y_uplim = y_max + 0.05 * (y_max - y_min)
+        
+        ax.set_xlim(x_lowlim, x_uplim)
+        ax.set_ylim(y_lowlim, y_uplim)
+        ax.grid(True, alpha=0.3)
+
+        # Update function
+        def update(frame):
+            t = timeframes[frame]
+            subset = sorted_reduced_positions.xs(t, level='timeframe')
+            scat.set_offsets(subset.iloc[:, [0, 1]].values)
+            ax.set_title(f"{reduction_name} Evolution — Timeframe {t}")
+            return scat,
+
+        # Create animation
+        ani = FuncAnimation(fig, update, frames=len(timeframes), 
+                        interval=interval, blit=False, repeat=True)
+
+        # Save to GIF if path provided
+        if save_path is not None:
+            ani.save(save_path, writer="pillow", fps=fps)
+            print(f"Animation saved to {save_path}")
+
+        # Display inline
+        plt.close(fig)  # prevent static image display
+        return HTML(ani.to_jshtml())
 
     def plot_pca_interactive():
         pass

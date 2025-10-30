@@ -9,7 +9,8 @@ It extends beyond static graph libraries by computing **graph dynamics**, includ
 - Node velocities across timeframes  
 
 ### Credits
-Pietro Gravino, Vito D. P. Servedio, Giulio Prevedello, Juraj Simkovic
+DESIGN and DEVELOPMENT: Pietro Gravino (Sony CSL Paris), Juraj Simkovic (Vienna University of Technology)
+SUPPORT and SUPERVISION: Pietro Gravino (Sony CSL Paris), Giulio Prevedello (Sony CSL Paris), Vito Servedio (Complexity Science Hub Vienna)
 
 ## Tutorial
 

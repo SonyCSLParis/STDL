@@ -21,3 +21,6 @@ modularity_test3.ipynb
 __pycache__
 
 /data
+images
+
+.DS_Store
