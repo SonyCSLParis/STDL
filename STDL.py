@@ -687,8 +687,8 @@ class STDC:
         if not hasattr(self, 'velocities'):
             self.calculate_velocities()
 
-        self.p_stats = self.aligned_reduced_positions.groupby(['t1','t2']).agg(['mean','var'])
-        self.v_stats = self.velocities.groupby(['t1','t2']).agg(['mean','var'])
+        self.p_stats = self.aligned_reduced_positions.groupby(['t1','t2']).agg(['mean','var','count'])
+        self.v_stats = self.velocities.groupby(['t1','t2']).agg(['mean','var','count'])
         return self.p_stats, self.v_stats
 
     def calculate_thermodyn_ts_stats(self):
@@ -700,8 +700,8 @@ class STDC:
         vol_ts = np.sqrt(self.p_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None))).prod(axis = 1)
         temp_ts = self.v_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None)).sum(axis = 1)
         vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)), 2).sum(axis = 1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
-        
-        self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts, 'Mod': self.aligned_modularities.set_index(['t1','t2'])['modularity']})
+        counts_ts = self.p_stats['count'].values
+        self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts, 'Mod': self.aligned_modularities.set_index(['t1','t2'])['modularity'], 'CNT': counts_ts})
         return self.thermo_stats
 
     # --------------------------------
@@ -712,15 +712,22 @@ class STDC:
             self.calculate_basic_ts_stats()
         if self.p_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)).shape[1] > 2:
             print("Warning: More than 2 dimensions detected. Plotting only the first two dimensions.")
-        x = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]
-        y = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]
+        x = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1].values.flatten()
+        y = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2].values.flatten()
+        x_err = np.sqrt((self.p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]/
+                        (self.p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]).values.flatten()
+        y_err = np.sqrt((self.p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]/
+                        (self.p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]).values.flatten()
 
-        plt.scatter(x, y, c = np.linspace(0, 1, self.p_stats.shape[0]), 
-                 cmap=plt.cm.rainbow,marker='o', label='Trajectory')
-        plt.colorbar(label='Time progression')
+        ps = plt.scatter(x, y, c=np.linspace(0, 1, self.p_stats.shape[0]), vmin=0, vmax=1, cmap=plt.cm.rainbow)
 
-        plt.quiver( x[:-1], y[:-1], x.diff()[1:], y.diff()[1:],    # vector components
-            scale_units='xy', angles='xy', scale=1, color='black', width=0.006, alpha=0.5)
+        colors = plt.cm.rainbow(np.linspace(0, 1, self.p_stats.shape[0]))
+        plt.errorbar(x, y, xerr=x_err, yerr=y_err,
+                     ecolor=colors, alpha=0.5)
+        plt.colorbar(ps, label='Time progression')
+
+        plt.quiver( x[:-1], y[:-1], x[1:] - x[:-1], y[1:] - y[:-1],    # vector components
+            scale_units='xy', angles='xy', scale=1, color='black', width=0.01, alpha=0.5)
         
     def plot_reduced_positions_animation(self, figsize=(6, 6), interval=1000, fps=1, save_path=None):
         """
