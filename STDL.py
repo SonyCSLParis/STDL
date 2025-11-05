@@ -707,11 +707,12 @@ class STDC:
     # --------------------------------
     # visualisation methods
     # --------------------------------
-    def plot_center_of_mass_trajectory(self):
+    def plot_center_of_mass_trajectory(self, groups=None):
         if not hasattr(self, 'p_stats'):
             self.calculate_basic_ts_stats()
         if self.p_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)).shape[1] > 2:
             print("Warning: More than 2 dimensions detected. Plotting only the first two dimensions.")
+
         x = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1].values.flatten()
         y = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2].values.flatten()
         x_err = np.sqrt((self.p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]/
@@ -719,6 +720,7 @@ class STDC:
         y_err = np.sqrt((self.p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]/
                         (self.p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]).values.flatten()
 
+        plt.figure(figsize=(10,6))
         ps = plt.scatter(x, y, c=np.linspace(0, 1, self.p_stats.shape[0]), vmin=0, vmax=1, cmap=plt.cm.rainbow)
 
         colors = plt.cm.rainbow(np.linspace(0, 1, self.p_stats.shape[0]))
@@ -727,7 +729,25 @@ class STDC:
         plt.colorbar(ps, label='Time progression')
 
         plt.quiver( x[:-1], y[:-1], x[1:] - x[:-1], y[1:] - y[:-1],    # vector components
-            scale_units='xy', angles='xy', scale=1, color='black', width=0.01, alpha=0.5)
+            scale_units='xy', angles='xy', scale=1, color='black', width=0.007, alpha=0.5)
+        
+        if groups != None:
+            for group in groups:
+                group_p_stats = self.aligned_reduced_positions[self.aligned_reduced_positions.index.get_level_values(0).isin(groups[group])].groupby(['t1','t2']).agg(['mean','var','count'])
+                group_x = (group_p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1].values.flatten()
+                group_y = (group_p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2].values.flatten()
+                group_x_err = np.sqrt((group_p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]/
+                                (group_p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]).values.flatten()
+                group_y_err = np.sqrt((group_p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]/
+                                (group_p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]).values.flatten()
+                
+                plt.scatter(group_x, group_y, c=np.linspace(0, 1, self.p_stats.shape[0]), vmin=0, vmax=1, cmap=plt.cm.rainbow, marker="$"+group+"$")
+                plt.errorbar(group_x, group_y, xerr=group_x_err, yerr=group_y_err,
+                        ecolor=colors, alpha=0.25)
+                plt.quiver( group_x[:-1], group_y[:-1], group_x[1:] - group_x[:-1], group_y[1:] - group_y[:-1],    # vector components
+                    scale_units='xy', angles='xy', scale=1, color='black', width=0.01, alpha=0.25)
+
+
         
     def plot_reduced_positions_animation(self, figsize=(6, 6), interval=1000, fps=1, save_path=None):
         """
