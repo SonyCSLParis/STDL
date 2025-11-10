@@ -749,7 +749,7 @@ class STDC:
 
 
         
-    def plot_reduced_positions_animation(self, figsize=(6, 6), interval=1000, fps=1, save_path=None):
+    def plot_reduced_positions_animation(self, figsize=(6, 6), interval=1000, fps=1, save_path=None, labels=None):
         """
         Create an animated visualization of reduced positions over time.
 
@@ -776,7 +776,14 @@ class STDC:
         Example
         -------
         >>> stdc = STDC(dimensions=2, reduction_function='umap')
-        >>> stdc.plot_reduced_positions_animation(save_path="evolution.gif")
+        >>> #author_id: "author_name"
+        >>> labels = {
+                18935802: "Repubblica",         
+                52424550: "Il Fatto Quotidiano",  
+                25508589: "ilGiornale",
+                1024976264: "Fratelli d'Italia"
+                }
+        >>> stdc.plot_reduced_positions_animation(save_path="evolution.gif", labels=labels)
         """
         if not hasattr(self, 'reduced_positions'):
             self.calculate_reduced_positions()
@@ -814,13 +821,26 @@ class STDC:
         ax.set_ylim(y_lowlim, y_uplim)
         ax.grid(True, alpha=0.3)
 
-        # Update function
+        # Update function for each frame
         def update(frame):
+
+            #remove previous text annotations
+            for txt in ax.texts:
+                txt.remove()
+
             t = timeframes[frame]
             subset = sorted_reduced_positions.xs(t, level='timeframe')
-            scat.set_offsets(subset.iloc[:, [0, 1]].values)
+            scat.set_offsets(subset.iloc[:, :2].values) # position updating
             ax.set_title(f"{reduction_name} Evolution — Timeframe {t}")
-            return scat,
+
+            #add labels if provided
+            if labels is not None:
+                for author_id, author_name in labels.items():
+                    if author_id in subset.index: # if statement still kept, just to make sure, in case calculate_timeframe(filter_always_present = False)
+                        x, y = subset.loc[author_id, subset.columns[:2]].values
+                        ax.text(x, y, author_name)
+
+            return scat, *ax.texts
 
         # Create animation
         ani = FuncAnimation(fig, update, frames=len(timeframes), 
