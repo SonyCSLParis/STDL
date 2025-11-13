@@ -17,7 +17,7 @@ modularity_test3.ipynb
 *.parquet
 .old_venv
 *test*.ipynb
-
+*.gif
 __pycache__
 
 /data

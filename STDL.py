@@ -700,7 +700,7 @@ class STDC:
         vol_ts = np.sqrt(self.p_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None))).prod(axis = 1)
         temp_ts = self.v_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None)).sum(axis = 1)
         vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)), 2).sum(axis = 1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
-        counts_ts = self.p_stats['count'].values
+        counts_ts = self.p_stats.xs('count', axis = 1, level = 1 + (self.__dimensions == None)).mean(axis = 1)
         self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts, 'Mod': self.aligned_modularities.set_index(['t1','t2'])['modularity'], 'CNT': counts_ts})
         return self.thermo_stats
 
