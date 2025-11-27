@@ -756,6 +756,8 @@ class STDC:
         Generates an animation showing how node positions evolve across timeframes
         in the reduced dimensional space (PCA, UMAP, etc.).
 
+        Has the possibility to input a dictionary of node_id: "node_name" labels to track individual nodes in the evolution.
+
         Parameters
         ----------
         figsize : tuple of int, default (6, 6)
@@ -776,12 +778,10 @@ class STDC:
         Example
         -------
         >>> stdc = STDC(dimensions=2, reduction_function='umap')
-        >>> #author_id: "author_name"
+        >>> #node_id: "node_name"
         >>> labels = {
-                18935802: "Repubblica",         
-                52424550: "Il Fatto Quotidiano",  
-                25508589: "ilGiornale",
-                1024976264: "Fratelli d'Italia"
+                123456789: "entity_1",         
+                987654321: "entity_2"
                 }
         >>> stdc.plot_reduced_positions_animation(save_path="evolution.gif", labels=labels)
         """
