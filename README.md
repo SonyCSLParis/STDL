@@ -6,13 +6,27 @@ It extends beyond static graph libraries by computing **graph dynamics**, includ
 - Time-calculated bipartite adjacency matrices  
 - Distance matrices (relative or absolute)  
 - Dimensionality reduction of positions  
-- Node velocities across timeframes  
+- Node velocities across timeframes
+- Graphs, their communities and corresponding modularities
+
+**Statistics:**
+- Position and velocity based
+- Thermodynamic
+
+**Visualisations:**
+- Center of mass trajectory
+- Reduced dimensionality evolution
+
+**Example reduced dimensionality evolution:**
+![pca_evolution](https://github.com/user-attachments/assets/d02c2fdd-669d-4516-875b-ab8dc4fd4180)
 
 ### Credits
 DESIGN and DEVELOPMENT: Pietro Gravino (Sony CSL Paris), Juraj Simkovic (Vienna University of Technology)
+<br/>
 SUPPORT and SUPERVISION: Pietro Gravino (Sony CSL Paris), Giulio Prevedello (Sony CSL Paris), Vito Servedio (Complexity Science Hub Vienna)
 
 ## Tutorial
+For a more extensive tutorial, please refer to the [example_notebook.ipynb](example_notebook.ipynb). The following functions display the basic functionality.
 
 **Initialize STDC object**  
 Create an STDC (Social Thermodynamics Class) object with 2D reduced positions and yearly timeframes. The comparison is specified as 'absolute'.
