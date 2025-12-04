@@ -1,26 +1,13 @@
-load_data.ipynb
-functions_old.py
-functions.py
-recovered_code.py
-recovered_functions.py
-recovered_variables.pkl
-df_checkpoint.parquet
-absolute_relative.ipynb
-implementation.ipynb
-implementation_old.ipynb
-implementation_old2.ipynb
-STDC_old.py
-STDL_test_old.ipynb
-STDL_modularity_test_juraj.ipynb
-modularity_test2.ipynb
-modularity_test3.ipynb
 *.parquet
 .old_venv
 *test*.ipynb
 *.gif
+
 __pycache__
 
-/data
 images
+/data
+
+df_checkpoint.parquet
 
 .DS_Store

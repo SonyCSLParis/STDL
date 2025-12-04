@@ -60,9 +60,9 @@ class STDC:
 
         field_names : list of str, default ['id1', 'id2', 'timestamp']
             Names of the columns in 'raw_data'. Must contain:
-            - projected_layer (node set to analyze, e.g. 'id1')
+            - main_layer (node set to analyze, e.g. 'id1')
             - other_layer (opposite node set, e.g. 'id2')
-            - timestamp_col (time information)
+            - datetime_col (time information, expects a datetime type)
 
         timeframe : str or int, default '%Y'
             Temporal resolution:
@@ -108,11 +108,11 @@ class STDC:
 
         Attributes
         ----------
-        projected_layer : str
+        main_layer : str
             Column name representing the analyzed node set.
         other_layer : str
             Column name representing the secondary node set.
-        timestamp_col : str
+        datetime_col : str
             Column name representing timestamps.
         biadjacency_matrix : pd.DataFrame or None
             Stores computed bipartite adjacency matrix.
@@ -146,12 +146,12 @@ class STDC:
 
         # check for correct field input
         if not isinstance(field_names, list) or len(field_names) < 3 or type(field_names) is not list:
-            raise ValueError("field_names must be a list with 3 ordered elements: [projected_layer, other_layer, timestamp_col]; default: ['id1', 'id2', 'timestamp']")
+            raise ValueError("field_names must be a list with 3 ordered elements: [main_layer, other_layer, datetime_col]; default: ['id1', 'id2', 'timestamp']")
         
         # set up column names
-        self.projected_layer = field_names[0]
+        self.main_layer = field_names[0]
         self.other_layer = field_names[1]
-        self.timestamp_col = field_names[2]
+        self.datetime_col = field_names[2]
 
         # global defaults
         self.__timeframe = timeframe
@@ -249,11 +249,11 @@ class STDC:
         if self.__time_type == 'actual':
             if not isinstance(self.__timeframe, str):
                 raise ValueError("If time_type is actual, timeframe must be a string.")
-            self.raw_data['timeframe'] =  self.raw_data[self.timestamp_col].dt.strftime(self.__timeframe)
+            self.raw_data['timeframe'] =  self.raw_data[self.datetime_col].dt.strftime(self.__timeframe)
         elif self.__time_type == 'intrinsic':
             if not isinstance(self.__timeframe, (int)):
                 raise ValueError("If time_type is intrinsic, timeframe must be an integer.")
-            self.raw_data = self.raw_data.sort_values(by=[self.timestamp_col])
+            self.raw_data = self.raw_data.sort_values(by=[self.datetime_col])
             self.raw_data['timeframe'] = range(len(self.raw_data))
             self.raw_data['timeframe'] = np.floor(self.raw_data['timeframe'] / self.__timeframe).astype(int)
         else:
@@ -261,23 +261,23 @@ class STDC:
 
         if filter_always_present:
             n_timeframes = self.raw_data['timeframe'].nunique()
-            tmp = self.raw_data.groupby(self.projected_layer)['timeframe'].nunique()
+            tmp = self.raw_data.groupby(self.main_layer)['timeframe'].nunique()
             layer1_always_present = tmp[tmp == n_timeframes].index.tolist()
-            self.raw_data = self.raw_data[self.raw_data[self.projected_layer].isin(layer1_always_present)]
+            self.raw_data = self.raw_data[self.raw_data[self.main_layer].isin(layer1_always_present)]
         return self.raw_data
 
     def calculate_biadjacency_matrix(self):
         """
         Construct a bipartite adjacency matrix across timeframes.
 
-        Builds a matrix representation of interactions between 'projected_layer' 
+        Builds a matrix representation of interactions between 'main_layer' 
         and 'other_layer', grouped by timeframe. Each entry contains the count 
         of interactions.
 
         Returns
         -------
         pd.DataFrame
-            Biadjacency matrix with MultiIndex (projected_layer, timeframe) as rows 
+            Biadjacency matrix with MultiIndex (main_layer, timeframe) as rows 
             and 'other_layer' as columns.
 
         Example
@@ -294,12 +294,12 @@ class STDC:
             self.calculate_timeframe()
 
         if self.__agg_func is None:
-            grouped = self.raw_data.groupby([self.projected_layer, self.other_layer, 'timeframe']).size().reset_index(name='counts')
+            grouped = self.raw_data.groupby([self.main_layer, self.other_layer, 'timeframe']).size().reset_index(name='counts')
         else:
             raise NotImplementedError("Other aggregation functions have not been implemented yet.")
 
         self.biadjacency_matrix = grouped.pivot(
-            index=[self.projected_layer, 'timeframe'], columns=self.other_layer, values='counts'
+            index=[self.main_layer, 'timeframe'], columns=self.other_layer, values='counts'
         ).fillna(0)
         
         return self.biadjacency_matrix
@@ -338,7 +338,7 @@ class STDC:
 
             for tf in self.biadjacency_matrix.index.levels[1].unique():
                 tmp_raw_data = self.biadjacency_matrix.xs(tf, level='timeframe')
-                multi_index = pd.MultiIndex.from_arrays([tmp_raw_data.index, [tf]*len(tmp_raw_data.index)], names=[self.projected_layer, 'timeframe'])
+                multi_index = pd.MultiIndex.from_arrays([tmp_raw_data.index, [tf]*len(tmp_raw_data.index)], names=[self.main_layer, 'timeframe'])
                 if self.__distance_function is None:
                     tmp_cosine_dist_matrix = pd.DataFrame(
                         cosine_distances(tmp_raw_data),
@@ -548,13 +548,13 @@ class STDC:
 
         aligned_positions = pd.DataFrame()
 
-        for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
-            tmp = self.reduced_positions.xs(node, level=self.projected_layer).sort_index()
+        for node in self.reduced_positions.index.get_level_values(self.main_layer).unique():
+            tmp = self.reduced_positions.xs(node, level=self.main_layer).sort_index()
             avg = (tmp.shift(-1) + tmp) / 2
             avg = avg.iloc[:-1]
             avg.index = pd.MultiIndex.from_arrays(
             [[node]*len(avg), tmp.index[:-1], tmp.index[1:]],
-            names=[self.projected_layer, 't1', 't2']
+            names=[self.main_layer, 't1', 't2']
             )
             aligned_positions = pd.concat([aligned_positions, avg], axis=0)
 
@@ -595,10 +595,10 @@ class STDC:
 
         velocities = pd.DataFrame()
 
-        for node in self.reduced_positions.index.get_level_values(self.projected_layer).unique():
-            tmp = self.reduced_positions.xs(node, level=self.projected_layer).sort_index()
+        for node in self.reduced_positions.index.get_level_values(self.main_layer).unique():
+            tmp = self.reduced_positions.xs(node, level=self.main_layer).sort_index()
             tmp2 = tmp.diff().dropna()
-            tmp2.index = pd.MultiIndex.from_arrays([[node]*len(tmp2), tmp.index[:-1], tmp.index[1:]], names=[self.projected_layer, 't1', 't2'])
+            tmp2.index = pd.MultiIndex.from_arrays([[node]*len(tmp2), tmp.index[:-1], tmp.index[1:]], names=[self.main_layer, 't1', 't2'])
             velocities = pd.concat([velocities, tmp2], axis=0)
 
         self.velocities = velocities
@@ -697,10 +697,10 @@ class STDC:
         if not hasattr(self, 'aligned_modularities'):
             self.calculate_aligned_modularities()
         
-        vol_ts = np.sqrt(self.p_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None))).prod(axis = 1)
-        temp_ts = self.v_stats.xs('var', axis = 1, level = 1 + (self.__dimensions == None)).sum(axis = 1)
-        vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)), 2).sum(axis = 1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
-        counts_ts = self.p_stats.xs('count', axis = 1, level = 1 + (self.__dimensions == None)).mean(axis = 1)
+        vol_ts = np.sqrt(self.p_stats.xs('var', axis = 1, level = 1)).prod(axis = 1)
+        temp_ts = self.v_stats.xs('var', axis = 1, level = 1).sum(axis = 1)
+        vcom_ts = np.sqrt(np.power(self.v_stats.xs('mean', axis = 1, level = 1), 2).sum(axis = 1)) # V = (V_x, V_y, ...) -> |V| = sqrt(V_x^2 + V_y^2 + ...)
+        counts_ts = self.p_stats.xs('count', axis = 1, level = 1).mean(axis = 1)
         self.thermo_stats = pd.DataFrame({'Vol': vol_ts, 'Temp': temp_ts, 'V_CoM': vcom_ts, 'Mod': self.aligned_modularities.set_index(['t1','t2'])['modularity'], 'CNT': counts_ts})
         return self.thermo_stats
 
@@ -710,15 +710,15 @@ class STDC:
     def plot_center_of_mass_trajectory(self, groups=None):
         if not hasattr(self, 'p_stats'):
             self.calculate_basic_ts_stats()
-        if self.p_stats.xs('mean', axis = 1, level = 1 + (self.__dimensions == None)).shape[1] > 2:
+        if self.p_stats.xs('mean', axis = 1, level = 1).shape[1] > 2:
             print("Warning: More than 2 dimensions detected. Plotting only the first two dimensions.")
 
-        x = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1].values.flatten()
-        y = (self.p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2].values.flatten()
-        x_err = np.sqrt((self.p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]/
-                        (self.p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]).values.flatten()
-        y_err = np.sqrt((self.p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]/
-                        (self.p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]).values.flatten()
+        x = (self.p_stats.xs('mean', level = 1, axis = 1)).iloc[:, :1].values.flatten()
+        y = (self.p_stats.xs('mean', level = 1, axis = 1)).iloc[:, 1:2].values.flatten()
+        x_err = np.sqrt((self.p_stats.xs('var', level = 1, axis = 1)).iloc[:, :1]/
+                        (self.p_stats.xs('count', level = 1, axis = 1)).iloc[:, :1]).values.flatten()
+        y_err = np.sqrt((self.p_stats.xs('var', level = 1, axis = 1)).iloc[:, 1:2]/
+                        (self.p_stats.xs('count', level = 1, axis = 1)).iloc[:, 1:2]).values.flatten()
 
         plt.figure(figsize=(10,6))
         ps = plt.scatter(x, y, c=np.linspace(0, 1, self.p_stats.shape[0]), vmin=0, vmax=1, cmap=plt.cm.rainbow)
@@ -734,12 +734,12 @@ class STDC:
         if groups != None:
             for group in groups:
                 group_p_stats = self.aligned_reduced_positions[self.aligned_reduced_positions.index.get_level_values(0).isin(groups[group])].groupby(['t1','t2']).agg(['mean','var','count'])
-                group_x = (group_p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1].values.flatten()
-                group_y = (group_p_stats.xs('mean', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2].values.flatten()
-                group_x_err = np.sqrt((group_p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]/
-                                (group_p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, :1]).values.flatten()
-                group_y_err = np.sqrt((group_p_stats.xs('var', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]/
-                                (group_p_stats.xs('count', level = 1 + (self.__dimensions == None), axis = 1)).iloc[:, 1:2]).values.flatten()
+                group_x = (group_p_stats.xs('mean', level = 1, axis = 1)).iloc[:, :1].values.flatten()
+                group_y = (group_p_stats.xs('mean', level = 1, axis = 1)).iloc[:, 1:2].values.flatten()
+                group_x_err = np.sqrt((group_p_stats.xs('var', level = 1, axis = 1)).iloc[:, :1]/
+                                (group_p_stats.xs('count', level = 1, axis = 1)).iloc[:, :1]).values.flatten()
+                group_y_err = np.sqrt((group_p_stats.xs('var', level = 1, axis = 1)).iloc[:, 1:2]/
+                                (group_p_stats.xs('count', level = 1, axis = 1)).iloc[:, 1:2]).values.flatten()
                 
                 plt.scatter(group_x, group_y, c=np.linspace(0, 1, self.p_stats.shape[0]), vmin=0, vmax=1, cmap=plt.cm.rainbow, marker="$"+group+"$")
                 plt.errorbar(group_x, group_y, xerr=group_x_err, yerr=group_y_err,
