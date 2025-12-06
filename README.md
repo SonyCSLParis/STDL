@@ -72,7 +72,7 @@ Create an `STDC` instance by passing the optional arguments:
   Choose dimensionality-reduction function.  
   If `None`, PCA is used.
 
-* ***community_detection : callable, default 'Leiden'***
+* ***community_detection : callable, default 'Leiden'***  
   Choose community detection algorithm (e.g. Leiden or SBM).  
   If `None`, Leiden is used.
 
