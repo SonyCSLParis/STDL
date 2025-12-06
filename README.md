@@ -41,8 +41,9 @@ For a more extensive tutorial, please refer to the [example_notebook.ipynb](exam
 
 Create an `STDC` instance by passing the optional arguments:
 
-* ***raw_data : pd.DataFrame***  
-  Input dataset with timestamps. Must include at least three columns matching `field_names`. If `None`, random data will be generated.
+* ***raw_data : pd.DataFrame, default None***  
+  Input dataset with timestamps. Must include at least three columns matching `field_names`.  
+  If `None`, random data will be generated.
 
 * ***field_names : list of str, default ['id1', 'id2', 'timestamp']***  
   Names of the columns in `raw_data`. Must contain:  
@@ -55,22 +56,27 @@ Create an `STDC` instance by passing the optional arguments:
   - For `time_type='actual'`: a datetime format string (e.g., `'%Y'`, `'%Y-%m'`)  
   - For `time_type='intrinsic'`: an integer defining the size of bins
 
-* ***time_type : {'actual', 'intrinsic'}, default='actual'***  
+* ***time_type : {'actual', 'intrinsic'}, default 'actual'***  
   Type of time analysis:  
   - `'actual'` - uses calendar units (year, month, week, day)  
   - `'intrinsic'` - count-based bins
 
-* ***distance_function : callable, default=None***  
-  Function used to compute distances between node vectors. If no distance function is passed, use cosine distance.
+* ***distance_function : callable, default None***  
+  Function used to compute distances between node vectors.  
+  If `None`, use cosine distance.
 
-* ***dimensions : int***  
+* ***dimensions : int, default None***  
   If provided, reduces the node positions into the specified number of dimensions.
 
-* ***reduction_function : callable, default=None***  
+* ***reduction_function : callable, default None***  
   Choose dimensionality-reduction function.  
   If `None`, PCA is used.
 
-* ***comparison : {'relative', 'absolute'}, default='relative'***  
+* ***community_detection : callable, default 'Leiden'***
+  Choose community detection algorithm (e.g. Leiden or SBM).  
+  If `None`, Leiden is used.
+
+* ***comparison : {'relative', 'absolute'}, default 'relative'***  
   Determines how distances are computed:  
   - `'relative'` - compute positions within the same timeframe
   - `'absolute'` - computed positions across all timeframes
