@@ -2,12 +2,12 @@ __pycache__
 
 .DS_Store
 
-.venv
-.parquet
-.ipynb
-.ipynb_checkpoints
-.gif
+*.parquet
+*.ipynb
+*.ipynb_checkpoints
+*.gif
 
+.venv
 images
 data
 
