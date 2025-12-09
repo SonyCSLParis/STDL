@@ -7,6 +7,7 @@ __pycache__
 *.ipynb_checkpoints
 *.gif
 
+
 .venv
 images
 data
