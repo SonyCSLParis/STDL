@@ -6,8 +6,7 @@
 __pycache__
 
 images
-/data
-df_checkpoint.parquet
+data
 
 .DS_Store
 
