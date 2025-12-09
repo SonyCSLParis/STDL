@@ -38,6 +38,10 @@ stdc.plot_center_of_mass_trajectory()
 ```
 For a more extensive tutorial, please refer to the [example_notebook.ipynb](example_notebook.ipynb).
 
+**Data source**: http://www.sociopatterns.org/datasets/baboons-interactions/
+<br/>
+**Paper**: Valeria Gelardi, Jeanne Godard, Dany Paleressompoulle, Nicolas Claidiere, Alain Barrat; Measuring social networks in primates: wearable sensors versus direct observations. Proc. A 1 April 2020; 476 (2236): 20190737. https://doi.org/10.1098/rspa.2019.0737
+
 ## Documentation
 
 ### Initialization
