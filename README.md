@@ -1,6 +1,9 @@
-# STDL – Social Thermodynamics Library
+# STDL – Social ThermoDynamics Library
 
-STDL is a Python package for analyzing **temporal bipartite networks**. It extends beyond static graph libraries by computing **graph dynamics** such as entity positions, velocities between consecutive timeframes, graphs, communities, modularities, visualisations and thermodynamic statistics.
+STDL is a Python package for analysing **temporal bipartite networks**. It extends beyond static graph libraries by computing **graph dynamics**, such as entity positions, velocities between consecutive timeframes, graphs, communities, modularity, visualisations, and thermodynamic statistics.
+
+> [!CAUTION]
+> Please note that it's still a work in progress, so use it with caution!
 
 ### Credits
 **DESIGN and DEVELOPMENT**: Pietro Gravino (Sony CSL Paris), Juraj Simkovic (Vienna University of Technology)
@@ -47,12 +50,12 @@ Create an `STDC` instance by passing the optional arguments:
 
 * ***field_names : list of str, default ['id1', 'id2', 'timestamp']***  
   Names of the columns in `raw_data`. Must contain:  
-  - `main_layer` — node set to analyze (e.g., `id1`)  
+  - `main_layer` — node set to analyse (e.g., `id1`)  
   - `other_layer` — opposite node set (e.g., `id2`)  
   - `datetime_col` — timestamp column (must be of type datetime)
 
 * ***timeframe : str or int, default '%Y'***  
-  Timeframe to analyze:  
+  Timeframe to analyse:  
   - For `time_type='actual'`: a datetime format string (e.g., `'%Y'`, `'%Y-%m'`)  
   - For `time_type='intrinsic'`: an integer defining the size of bins
 
@@ -69,11 +72,11 @@ Create an `STDC` instance by passing the optional arguments:
   If provided, reduces the node positions into the specified number of dimensions.
 
 * ***reduction_function : callable, default None***  
-  Choose dimensionality-reduction function.  
+  Choose a dimensionality-reduction function.  
   If `None`, PCA is used.
 
 * ***community_detection : callable, default 'Leiden'***  
-  Choose community detection algorithm (e.g. Leiden or SBM).  
+  Choose a community detection algorithm (e.g. Leiden or SBM).  
   If `None`, Leiden is used.
 
 * ***comparison : {'relative', 'absolute'}, default 'relative'***  
@@ -111,8 +114,8 @@ def random_data_gen(self):
 def calculate_timeframe(self, filter_always_present=True):
 
     """
-    Assign each record in the dataset to a timeframe bin specified by user.
-    The bins are by default allocated by year.
+    Assign each record in the dataset to a timeframe bin specified by the user.
+    The bins are, by default, allocated by year.
 
     Parameters
     ----------
@@ -124,7 +127,7 @@ def calculate_biadjacency_matrix(self):
 
     """
     Output a matrix where a row is by default the count of the interactions
-    between an entity of the main layer in a certain timeframe, with all other entities in the other layer.
+    between an entity of the main layer in a specific timeframe, with all other entities in the other layer.
     """
 
 def calculate_positions(self):
@@ -165,7 +168,7 @@ def calculate_modularities(self):
 def calculate_aligned_modularities(self):
 
     """
-    Compute modularities as average of two consecutive timeframes.
+    Compute modularities as the average of two consecutive timeframes.
     """
 
 def calculate_velocities(self):
@@ -195,7 +198,7 @@ def calculate_thermodyn_ts_stats(self):
 def plot_center_of_mass_trajectory(self, groups=None):
 
     """
-    Visualize movement of the center of mass, which is represented by the mean and the corresponding error bars.
+    Visualise the movement of the centre of mass, which is represented by the mean and the corresponding error bars.
     
     Parameters
     ----------
@@ -222,7 +225,7 @@ def plot_reduced_positions_animation(self, figsize=(6, 6), interval=1000, fps=1,
     save_path : str, optional
         If provided, saves the animation as a GIF to this path.
     labels : dict, optional
-        Label and track movement of specific nodes.
+        Label and track the movement of specific nodes.
     """
 ```
 ![pca_evolution](https://github.com/user-attachments/assets/d02c2fdd-669d-4516-875b-ab8dc4fd4180)
