@@ -681,7 +681,7 @@ class STDC:
     # statistics methods
     # --------------------------------
 
-    def calculate_basic_ts_stats(self, temp=True, vol=True, vel_CoM=True): 
+    def calculate_basic_ts_stats(self): 
         if not hasattr(self, 'aligned_reduced_positions'):
             self.calculate_aligned_reduced_positions()
         if not hasattr(self, 'velocities'):
