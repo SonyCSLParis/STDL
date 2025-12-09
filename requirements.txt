@@ -1,7 +1,10 @@
+ipykernel
+ipywidgets
+
 pandas
 numpy
 scikit-learn
 graph-tool
 matplotlib
 umap-learn
-igraph
+python-igraph
