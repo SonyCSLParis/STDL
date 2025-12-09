@@ -1,13 +1,14 @@
-*.parquet
-.old_venv
-*test*.ipynb
-*.gif
-
 __pycache__
+
+.DS_Store
+
+.venv
+.parquet
+.ipynb
+.ipynb_checkpoints
+.gif
 
 images
 data
 
-.DS_Store
 
-example_notebook.ipynb
